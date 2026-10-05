@@ -1,6 +1,9 @@
 // Net Helper 9300: a native helper for the Java apps on the Nokia 9300 (Series 80 2.0, Symbian 7.0s).
-// Step 1: an app that listens on 127.0.0.1:8123 and answers every HTTP request with a short text,
-// to prove that a Java MIDlet can reach native code on the phone.
+// It listens on 127.0.0.1:8123. A Java app asks for
+//     GET /fetch?u=<percent-encoded URL>
+// and the helper fetches that URL over kept-open HTTP/1.1 connections (TLS through the phone's
+// CSecureSocket, i.e. the patched SSLADAPTOR.dll) and answers with the server's status, type and body.
+// The network work runs in its own thread; the UI only shows the counters.
 
 #ifndef NETHELPER_H
 #define NETHELPER_H
@@ -9,70 +12,53 @@
 #include <eikdoc.h>
 #include <eikappui.h>
 #include <eikbctrl.h>
-#include <es_sock.h>
-#include <in_sock.h>
 
 const TInt KNetHelperPort = 8123;
+const TInt KStatLines = 7;
 
-class MServerObserver
+// Shared between the UI thread and the worker thread (the worker writes, the UI only reads).
+struct TNetStats
     {
-public:
-    virtual void ServerChanged() = 0;
+    TInt iChanged;              // bumped on every change
+    TInt iRequests;             // requests from the Java apps
+    TInt iFetches;              // /fetch requests done
+    TInt iReused;               // ...over a kept-open connection
+    TInt iNewConns;             // connections opened
+    TInt iErrors;
+    TInt iOpenConns;
+    TBuf<100> iStatus;
+    TBuf<110> iLines[KStatLines];
+    TInt iNextLine;
     };
 
-// A tiny HTTP server: accepts one connection at a time, reads the request head, answers, closes.
-class CHttpServer : public CActive
-    {
-public:
-    static CHttpServer* NewL(MServerObserver& aObserver);
-    ~CHttpServer();
-    TInt Requests() const { return iRequests; }
-    const TDesC& Status() const { return iStatus2; }
-    const TDesC8& LastRequest() const { return iLastLine; }
-private:
-    CHttpServer(MServerObserver& aObserver);
-    void ConstructL();
-    void AcceptNext();
-    void Fail(const TDesC& aWhat, TInt aErr);
-    void RunL();
-    void DoCancel();
-    enum TState { EAccepting, EReading, EWriting };
-    MServerObserver& iObserver;
-    RSocketServ iSs;
-    RSocket iListen;
-    RSocket iConn;
-    TBool iConnOpen;
-    TState iState;
-    TBuf8<512> iRecv;
-    TSockXfrLength iRecvLen;
-    TBuf8<2048> iRequest;
-    TBuf8<512> iReply;
-    TBuf8<120> iLastLine;
-    TBuf<120> iStatus2;
-    TInt iRequests;
-    };
+void AddStatLine(TNetStats& aStats, const TDesC& aLine);
+TInt NetWorkerThread(TAny* aStats);
 
 class CNetHelperView : public CEikBorderedControl
     {
 public:
-    static CNetHelperView* NewL(const TRect& aRect, CHttpServer*& aServer);
+    static CNetHelperView* NewL(const TRect& aRect, const TNetStats& aStats);
     void Draw(const TRect& aRect) const;
 private:
-    CNetHelperView(CHttpServer*& aServer) : iServer(aServer) {}
+    CNetHelperView(const TNetStats& aStats) : iStats(aStats) {}
     void ConstructL(const TRect& aRect);
-    CHttpServer*& iServer;
+    const TNetStats& iStats;
     };
 
-class CNetHelperAppUi : public CEikAppUi, public MServerObserver
+class CNetHelperAppUi : public CEikAppUi
     {
 public:
     void ConstructL();
     ~CNetHelperAppUi();
     void HandleCommandL(TInt aCommand);
-    void ServerChanged();
 private:
+    static TInt Tick(TAny* aSelf);
     CNetHelperView* iView;
-    CHttpServer* iServer;
+    TNetStats iStats;
+    RThread iWorker;
+    TBool iWorkerOpen;
+    CPeriodic* iTimer;
+    TInt iSeen;
     };
 
 class CNetHelperDocument : public CEikDocument

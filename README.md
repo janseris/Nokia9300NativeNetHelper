@@ -9,11 +9,18 @@ on the phone, listens there and will do the network work for them over kept-open
 
 ## Status
 
-- **Step 1 (0.1):** the app listens on `127.0.0.1:8123`, answers every HTTP request with a short
-  text and shows how many requests it got. Probe 2.9 → *Test pomocníka* checks that a MIDlet can
-  reach it.
-- Step 2: forward the Java apps' requests over kept-open HTTP/HTTPS connections (keep-alive; TLS
-  through the phone's patched `SSLADAPTOR.dll`).
+- **Step 1 (0.1):** the app listens on `127.0.0.1:8123` and answers with a short text. Probe 3.1 →
+  *Test Net Helper*: ~80 ms per request from a MIDlet to the helper.
+- **Step 2 (0.2):** `GET /fetch?u=<percent-encoded URL>` fetches the URL over kept-open HTTP/1.1
+  connections (up to 4, one per server; TLS through `CSecureSocket`, i.e. the phone's patched
+  `SSLADAPTOR.dll`, with SNI) and answers with the server's status code, `Content-Type` and body.
+  - optional request header `X-Ua`: the User-Agent to send (otherwise the helper's own);
+  - `X-Helper` response header: `conn=reused|new dns= connect= tls= first-byte= total=` (ms);
+  - on failure: HTTP 502 with `X-Helper-Error: <Symbian error> <step>`.
+  - The network work runs in its own thread (blocking-style waits on a nested active scheduler);
+    one request at a time.
+  - Probe 3.2 → *Net Helper: dlaždice přímo vs přes helper* compares it with direct requests.
+- Next: make Mapy use it when it's running (falling back to direct requests).
 
 ## Install
 
