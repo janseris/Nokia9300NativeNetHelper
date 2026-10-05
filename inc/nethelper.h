@@ -1,9 +1,9 @@
-// Pomocnik 9300: a native helper for the Java apps on the Nokia 9300 (Series 80 2.0, Symbian 7.0s).
+// Net Helper 9300: a native helper for the Java apps on the Nokia 9300 (Series 80 2.0, Symbian 7.0s).
 // Step 1: an app that listens on 127.0.0.1:8123 and answers every HTTP request with a short text,
 // to prove that a Java MIDlet can reach native code on the phone.
 
-#ifndef POMOCNIK_H
-#define POMOCNIK_H
+#ifndef NETHELPER_H
+#define NETHELPER_H
 
 #include <eikapp.h>
 #include <eikdoc.h>
@@ -12,7 +12,7 @@
 #include <es_sock.h>
 #include <in_sock.h>
 
-const TInt KPomocnikPort = 8123;
+const TInt KNetHelperPort = 8123;
 
 class MServerObserver
     {
@@ -52,42 +52,42 @@ private:
     TInt iRequests;
     };
 
-class CPomocnikView : public CEikBorderedControl
+class CNetHelperView : public CEikBorderedControl
     {
 public:
-    static CPomocnikView* NewL(const TRect& aRect, CHttpServer*& aServer);
+    static CNetHelperView* NewL(const TRect& aRect, CHttpServer*& aServer);
     void Draw(const TRect& aRect) const;
 private:
-    CPomocnikView(CHttpServer*& aServer) : iServer(aServer) {}
+    CNetHelperView(CHttpServer*& aServer) : iServer(aServer) {}
     void ConstructL(const TRect& aRect);
     CHttpServer*& iServer;
     };
 
-class CPomocnikAppUi : public CEikAppUi, public MServerObserver
+class CNetHelperAppUi : public CEikAppUi, public MServerObserver
     {
 public:
     void ConstructL();
-    ~CPomocnikAppUi();
+    ~CNetHelperAppUi();
     void HandleCommandL(TInt aCommand);
     void ServerChanged();
 private:
-    CPomocnikView* iView;
+    CNetHelperView* iView;
     CHttpServer* iServer;
     };
 
-class CPomocnikDocument : public CEikDocument
+class CNetHelperDocument : public CEikDocument
     {
 public:
-    CPomocnikDocument(CEikApplication& aApp) : CEikDocument(aApp) {}
-    CEikAppUi* CreateAppUiL() { return new (ELeave) CPomocnikAppUi; }
+    CNetHelperDocument(CEikApplication& aApp) : CEikDocument(aApp) {}
+    CEikAppUi* CreateAppUiL() { return new (ELeave) CNetHelperAppUi; }
     };
 
-class CPomocnikApplication : public CEikApplication
+class CNetHelperApplication : public CEikApplication
     {
 public:
     TUid AppDllUid() const;
 protected:
-    CApaDocument* CreateDocumentL() { return new (ELeave) CPomocnikDocument(*this); }
+    CApaDocument* CreateDocumentL() { return new (ELeave) CNetHelperDocument(*this); }
     };
 
 #endif

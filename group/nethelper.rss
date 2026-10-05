@@ -1,0 +1,36 @@
+NAME NETH
+
+#include <eikon.rh>
+#include "nethelper.hrh"
+
+RESOURCE RSS_SIGNATURE { }
+RESOURCE TBUF r_default_document_name { buf=""; }
+
+RESOURCE EIK_APP_INFO
+    {
+    menubar = r_nethelper_menubar;
+    cba = r_nethelper_cba;
+    }
+
+RESOURCE CBA r_nethelper_cba
+    {
+    buttons =
+        {
+        CBA_BUTTON { id = ENetHelperCmdInfo; txt = "Info"; },
+        CBA_BUTTON { id = EEikCmdExit; txt = "Exit"; }
+        };
+    }
+
+RESOURCE MENU_BAR r_nethelper_menubar
+    {
+    titles = { MENU_TITLE { menu_pane = r_nethelper_menu; txt = "Net Helper"; } };
+    }
+
+RESOURCE MENU_PANE r_nethelper_menu
+    {
+    items =
+        {
+        MENU_ITEM { command = ENetHelperCmdInfo; txt = "Info"; },
+        MENU_ITEM { command = EEikCmdExit; txt = "Exit"; }
+        };
+    }

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Builds bin/pomocnik.sis (ARMI, for the Nokia 9300).
+# Builds bin/nethelper.sis (ARMI, for the Nokia 9300).
 # Needs the EKA1 toolchain and the Series 80 SDK, set up by the main repo's
 #   symbian-build/toolchain/setup_eka1_toolchain.sh <dir> ~/sym
 #   symbian-build/toolchain/setup_s80_sdk.sh S80_DP_2_0_SDK.zip ~/sym
@@ -12,6 +12,6 @@ bldmake bldfiles
 abld build armi urel
 E=$SYM/s80_20/epoc32
 mkdir -p "$HERE/bin"
-sed "s|EPOC32|$E|g" "$HERE/sis/pomocnik.pkg.in" > "$HERE/bin/pomocnik.pkg"
-cd "$HERE/bin" && makesis pomocnik.pkg pomocnik.sis && rm pomocnik.pkg
-ls -l "$HERE/bin/pomocnik.sis"
+sed "s|EPOC32|$E|g" "$HERE/sis/nethelper.pkg.in" > "$HERE/bin/nethelper.pkg"
+cd "$HERE/bin" && makesis nethelper.pkg nethelper.sis && rm nethelper.pkg
+ls -l "$HERE/bin/nethelper.sis"

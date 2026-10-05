@@ -1,0 +1,7 @@
+#ifndef NETHELPER_HRH
+#define NETHELPER_HRH
+enum TNetHelperCommands
+    {
+    ENetHelperCmdInfo = 1
+    };
+#endif

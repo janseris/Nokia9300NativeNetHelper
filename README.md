@@ -1,4 +1,4 @@
-# Pomocník 9300
+# Net Helper 9300
 
 A native (Symbian C++) helper for the Java apps on the **Nokia 9300** (Series 80 2.0, Symbian 7.0s EKA1).
 
@@ -9,22 +9,22 @@ on the phone, listens there and will do the network work for them over kept-open
 
 ## Status
 
-- **Step 1 (this version, 0.1):** the app listens on `127.0.0.1:8123` and answers every HTTP request
-  with a short text, and shows how many requests it got. Probe 2.9 → *Test pomocníka* checks that a
-  MIDlet can reach it.
-- Step 2: forward requests (`http://127.0.0.1:8123/?u=<url>` or similar) over kept-open HTTP/HTTPS
-  connections (keep-alive, TLS through the phone's patched `SSLADAPTOR.dll`).
+- **Step 1 (0.1):** the app listens on `127.0.0.1:8123`, answers every HTTP request with a short
+  text and shows how many requests it got. Probe 2.9 → *Test pomocníka* checks that a MIDlet can
+  reach it.
+- Step 2: forward the Java apps' requests over kept-open HTTP/HTTPS connections (keep-alive; TLS
+  through the phone's patched `SSLADAPTOR.dll`).
 
 ## Install
 
-`bin/pomocnik.sis` (unsigned; Symbian 7.0s installs it after a warning). Via the kit's OTA server:
-copy it next to `ota_server.js` and open `http://192.168.137.1:8000/` on the phone. Start
-**Pomocnik** from the Desk; it must be running while the Java app uses it.
+`bin/nethelper.sis` (unsigned; Symbian 7.0s installs it after a warning), e.g. through the kit's
+OTA server (`http://192.168.137.1:8000/`). Start **Net Helper** from the Desk; it must be running
+while the Java app uses it.
 
 ## Build (Linux)
 
 ```sh
-./build.sh        # needs ~/sym from setup_eka1_toolchain.sh + setup_s80_sdk.sh (main repo)
+./build.sh    # needs ~/sym from the main repo's setup_eka1_toolchain.sh + setup_s80_sdk.sh
 ```
 
-The UID `0x0F5A9300` is from the test range (0x01000000–0x0FFFFFFF).
+UID `0x0F5A9300` (test range 0x01000000–0x0FFFFFFF).

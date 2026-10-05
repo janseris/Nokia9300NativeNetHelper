@@ -1,14 +1,14 @@
-TARGET            pomocnik.app
+TARGET            nethelper.app
 TARGETTYPE        app
 UID               0x100039CE 0x0F5A9300
-TARGETPATH        \system\apps\pomocnik
+TARGETPATH        \system\apps\nethelper
 LANG              SC
 
 SOURCEPATH        ..\src
-SOURCE            pomocnik.cpp
+SOURCE            nethelper.cpp
 
 SOURCEPATH        ..\group
-RESOURCE          pomocnik.rss
+RESOURCE          nethelper.rss
 
 USERINCLUDE       ..\inc
 SYSTEMINCLUDE     \epoc32\include

@@ -1,7 +1,0 @@
-#ifndef POMOCNIK_HRH
-#define POMOCNIK_HRH
-enum TPomocnikCommands
-    {
-    EPomocnikCmdInfo = 1
-    };
-#endif

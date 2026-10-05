@@ -1,37 +1,37 @@
 #include <eikenv.h>
 #include <cknenv.h>
 #include <ckninfo.h>
-#include <pomocnik.rsg>
-#include "pomocnik.h"
-#include "pomocnik.hrh"
+#include <nethelper.rsg>
+#include "nethelper.h"
+#include "nethelper.hrh"
 
-static const TUid KUidPomocnik = { 0x0F5A9300 };
+static const TUid KUidNetHelper = { 0x0F5A9300 };
 
 // ------------------------------------------------------------------ app framework
 
 GLDEF_C TInt E32Dll(TDllReason) { return KErrNone; }
 
-EXPORT_C CApaApplication* NewApplication() { return new CPomocnikApplication; }
+EXPORT_C CApaApplication* NewApplication() { return new CNetHelperApplication; }
 
-TUid CPomocnikApplication::AppDllUid() const { return KUidPomocnik; }
+TUid CNetHelperApplication::AppDllUid() const { return KUidNetHelper; }
 
-void CPomocnikAppUi::ConstructL()
+void CNetHelperAppUi::ConstructL()
     {
     BaseConstructL();
-    iView = CPomocnikView::NewL(ClientRect(), iServer);
+    iView = CNetHelperView::NewL(ClientRect(), iServer);
     AddToStackL(iView);
     TRAPD(err, iServer = CHttpServer::NewL(*this));
     if (err != KErrNone)
         {
-        _LIT(KTitle, "Pomocnik");
+        _LIT(KTitle, "Net Helper");
         TBuf<64> msg;
-        msg.Format(_L("Server se nespustil: chyba %d"), err);
+        msg.Format(_L("Server did not start: error %d"), err);
         CCknInfoDialog::RunDlgLD(KTitle, msg);
         }
     iView->DrawNow();
     }
 
-CPomocnikAppUi::~CPomocnikAppUi()
+CNetHelperAppUi::~CNetHelperAppUi()
     {
     delete iServer;
     if (iView)
@@ -41,17 +41,17 @@ CPomocnikAppUi::~CPomocnikAppUi()
         }
     }
 
-void CPomocnikAppUi::HandleCommandL(TInt aCommand)
+void CNetHelperAppUi::HandleCommandL(TInt aCommand)
     {
     switch (aCommand)
         {
         case EEikCmdExit:
             CBaActiveScheduler::Exit();
             break;
-        case EPomocnikCmdInfo:
+        case ENetHelperCmdInfo:
             {
-            _LIT(KTitle, "Pomocnik 9300");
-            _LIT(KText, "Nativni pomocnik pro Java aplikace. Krok 1: odpovida na http://127.0.0.1:8123/");
+            _LIT(KTitle, "Net Helper 9300");
+            _LIT(KText, "Native helper for the Java apps. Step 1: answers on http://127.0.0.1:8123/");
             CCknInfoDialog::RunDlgLD(KTitle, KText);
             }
             break;
@@ -60,23 +60,23 @@ void CPomocnikAppUi::HandleCommandL(TInt aCommand)
         }
     }
 
-void CPomocnikAppUi::ServerChanged()
+void CNetHelperAppUi::ServerChanged()
     {
     if (iView) iView->DrawNow();
     }
 
 // ------------------------------------------------------------------ view
 
-CPomocnikView* CPomocnikView::NewL(const TRect& aRect, CHttpServer*& aServer)
+CNetHelperView* CNetHelperView::NewL(const TRect& aRect, CHttpServer*& aServer)
     {
-    CPomocnikView* self = new (ELeave) CPomocnikView(aServer);
+    CNetHelperView* self = new (ELeave) CNetHelperView(aServer);
     CleanupStack::PushL(self);
     self->ConstructL(aRect);
     CleanupStack::Pop(self);
     return self;
     }
 
-void CPomocnikView::ConstructL(const TRect& aRect)
+void CNetHelperView::ConstructL(const TRect& aRect)
     {
     CreateWindowL();
     SetRect(aRect);
@@ -86,7 +86,7 @@ void CPomocnikView::ConstructL(const TRect& aRect)
     ActivateL();
     }
 
-void CPomocnikView::Draw(const TRect& aRect) const
+void CNetHelperView::Draw(const TRect& aRect) const
     {
     CEikBorderedControl::Draw(aRect);
     CWindowGc& gc = SystemGc();
@@ -100,28 +100,28 @@ void CPomocnikView::Draw(const TRect& aRect) const
     gc.SetPenColor(KRgbBlack);
     TInt h = font->HeightInPixels() + 6;
     TPoint p(rect.iTl.iX + 10, rect.iTl.iY + h + 4);
-    gc.DrawText(_L("Pomocnik 9300 - nativni pomocnik pro Java aplikace"), p);
+    gc.DrawText(_L("Net Helper 9300 - native helper for the Java apps"), p);
     p.iY += h;
     if (iServer)
         {
         gc.DrawText(iServer->Status(), p);
         p.iY += h;
         TBuf<64> n;
-        n.Format(_L("Pozadavku: %d"), iServer->Requests());
+        n.Format(_L("Requests: %d"), iServer->Requests());
         gc.DrawText(n, p);
         p.iY += h;
         TBuf<130> last;
         last.Copy(iServer->LastRequest());
         if (last.Length() > 0)
             {
-            gc.DrawText(_L("Posledni:"), p);
+            gc.DrawText(_L("Last:"), p);
             p.iY += h;
             gc.DrawText(last, p);
             }
         }
     else
         {
-        gc.DrawText(_L("Server nebezi."), p);
+        gc.DrawText(_L("Server not running."), p);
         }
     gc.DiscardFont();
     }
@@ -147,10 +147,10 @@ void CHttpServer::ConstructL()
     User::LeaveIfError(iSs.Connect());
     User::LeaveIfError(iListen.Open(iSs, KAfInet, KSockStream, KProtocolInetTcp));
     iListen.SetOpt(KSoReuseAddr, KSolInetIp, 1);
-    TInetAddr addr(INET_ADDR(127, 0, 0, 1), KPomocnikPort);
+    TInetAddr addr(INET_ADDR(127, 0, 0, 1), KNetHelperPort);
     User::LeaveIfError(iListen.Bind(addr));
     User::LeaveIfError(iListen.Listen(4));
-    iStatus2.Format(_L("Nasloucham na 127.0.0.1:%d"), KPomocnikPort);
+    iStatus2.Format(_L("Listening on 127.0.0.1:%d"), KNetHelperPort);
     AcceptNext();
     }
 
@@ -176,7 +176,7 @@ void CHttpServer::AcceptNext()
 
 void CHttpServer::Fail(const TDesC& aWhat, TInt aErr)
     {
-    iStatus2.Format(_L("Chyba: %S %d"), &aWhat, aErr);
+    iStatus2.Format(_L("Error: %S %d"), &aWhat, aErr);
     iObserver.ServerChanged();
     }
 
@@ -202,7 +202,7 @@ void CHttpServer::RunL()
                     iLastLine = iRequest.Left(eol < 0 ? Min(iRequest.Length(), 120) : Min(eol, 120));
                     iRequests++;
                     TBuf8<200> body;
-                    body.Format(_L8("Pomocnik 9300: ahoj z nativniho kodu, pozadavek %d\n"), iRequests);
+                    body.Format(_L8("Net Helper 9300: hello from native code, request %d\n"), iRequests);
                     iReply.Format(_L8("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n"), body.Length());
                     iReply.Append(body);
                     iState = EWriting;
