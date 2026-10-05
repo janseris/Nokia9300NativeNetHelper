@@ -1,0 +1,17 @@
+TARGET            pomocnik.app
+TARGETTYPE        app
+UID               0x100039CE 0x0F5A9300
+TARGETPATH        \system\apps\pomocnik
+LANG              SC
+
+SOURCEPATH        ..\src
+SOURCE            pomocnik.cpp
+
+SOURCEPATH        ..\group
+RESOURCE          pomocnik.rss
+
+USERINCLUDE       ..\inc
+SYSTEMINCLUDE     \epoc32\include
+
+LIBRARY           euser.lib apparc.lib cone.lib eikcore.lib eikcoctl.lib bafl.lib egul.lib
+LIBRARY           ckndlg.lib ckncore.lib esock.lib insock.lib gdi.lib
