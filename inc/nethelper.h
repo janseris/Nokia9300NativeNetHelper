@@ -16,6 +16,23 @@
 const TInt KNetHelperPort = 8123;
 const TInt KStatLines = 7;
 
+// The GPS, read natively over Bluetooth by its own thread (Java's Bluetooth and HTTP together
+// slowed the downloads to seconds and crashed jes-java-comms). The HTTP worker hands it out at /gps.
+// Locked by iLock: the HTTP worker writes the wish (address, last request), the GPS thread the rest.
+struct TGpsState
+    {
+    RCriticalSection iLock;
+    TBuf8<12> iAddr;            // wanted device, 12 hex digits ("" = none)
+    TBool iWanted;
+    TTime iLastAsk;             // time of the last /gps request
+    TBuf8<120> iGga, iRmc;      // the latest sentences
+    TTime iLastData;            // time of the last sentence (0 = none yet)
+    TInt iSentences, iConnects, iChannel;
+    TBuf8<16> iState;           // idle, searching, connecting, connected, error
+    TBuf8<120> iInfo;
+    TRequestStatus* iStop;      // the GPS thread's stop request
+    };
+
 // Shared between the UI thread and the worker thread (the worker writes, the UI only reads).
 struct TNetStats
     {
@@ -30,10 +47,12 @@ struct TNetStats
     TBuf<110> iLines[KStatLines];
     TInt iNextLine;
     TRequestStatus* iStop;      // the worker's stop request: the UI completes it on Exit
+    TGpsState iGps;
     };
 
 void AddStatLine(TNetStats& aStats, const TDesC& aLine);
 TInt NetWorkerThread(TAny* aStats);
+TInt NetGpsThread(TAny* aStats);
 
 class CNetHelperView : public CEikBorderedControl
     {
@@ -58,6 +77,9 @@ private:
     TNetStats iStats;
     RThread iWorker;
     TBool iWorkerOpen;
+    RThread iGpsThread;
+    TBool iGpsOpen;
+    void StopThread(RThread& aThread, TRequestStatus* aStop);
     CPeriodic* iTimer;
     TInt iSeen;
     };

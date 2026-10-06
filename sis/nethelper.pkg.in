@@ -1,6 +1,6 @@
 ; Net Helper 9300: native helper for the Java apps
 &EN
-#{"Net Helper 9300"},(0x0F5A9300),0,3,0
+#{"Net Helper 9300"},(0x0F5A9300),0,4,0
 ; Series 80 2.0 (Nokia 9300 / 9500)
 (0x101F8ED2), 0, 0, 0, {"Series80ProductID"}
 "EPOC32/release/armi/urel/nethelper.app"-"!:\system\apps\nethelper\nethelper.app"

@@ -20,7 +20,7 @@ _LIT8(KReused8, "reused");
 _LIT8(KNew8, "new");
 _LIT(KReused, "reused");
 _LIT(KNew, "new");
-_LIT8(KDefaultUa, "NetHelper9300/0.3 (Symbian native helper; Nokia 9300; SymbianOS/7.0s Series80/2.0)");
+_LIT8(KDefaultUa, "NetHelper9300/0.4 (Symbian native helper; Nokia 9300; SymbianOS/7.0s Series80/2.0)");
 
 void AddStatLine(TNetStats& aStats, const TDesC& aLine)
     {
@@ -29,63 +29,7 @@ void AddStatLine(TNetStats& aStats, const TDesC& aLine)
     aStats.iChanged++;
     }
 
-// ------------------------------------------------------------------ blocking waits
-
-class MCancelIo
-    {
-public:
-    virtual void CancelIo() = 0;
-    };
-
-class CTimeout : public CTimer
-    {
-public:
-    CTimeout() : CTimer(EPriorityHigh) {}
-    void ConstructL() { CTimer::ConstructL(); CActiveScheduler::Add(this); }
-    void RunL() { iFired = ETrue; if (iOp) iOp->CancelIo(); }
-    MCancelIo* iOp;
-    TBool iFired;
-    };
-
-// Issue a request with Status(), then Wait(): runs the scheduler until it completes (or times out).
-class CWaiter : public CActive
-    {
-public:
-    CWaiter() : CActive(EPriorityStandard) { CActiveScheduler::Add(this); }
-    void ConstructL() { iTimeout = new (ELeave) CTimeout; iTimeout->ConstructL(); iWait = new (ELeave) CActiveSchedulerWait; }
-    ~CWaiter() { delete iTimeout; delete iWait; }
-    TRequestStatus& Status() { return iStatus; }
-    TInt Wait(TInt aMs, MCancelIo* aOp)
-        {
-        SetActive();
-        iCurrent = aOp;
-        if (iStopping && aOp) aOp->CancelIo();          // shutting down: don't start waiting
-        iTimeout->iFired = EFalse;
-        iTimeout->iOp = aOp;
-        if (aMs > 0 && aOp) iTimeout->After(aMs * 1000);
-        iWait->Start();
-        iCurrent = NULL;
-        iTimeout->Cancel();
-        TInt r = iStatus.Int();
-        if (iTimeout->iFired && r != KErrNone) r = KErrTimedOut;
-        return r;
-        }
-private:
-public:
-    void Stop()
-        {
-        iStopping = ETrue;
-        if (iCurrent) iCurrent->CancelIo();
-        }
-    TBool Stopping() const { return iStopping; }
-private:
-    void RunL() { iWait->AsyncStop(); }
-    void DoCancel() {}
-    MCancelIo* iCurrent;
-    TBool iStopping;
-    CTimeout* iTimeout;
-    CActiveSchedulerWait* iWait;
-    };
+#include "wait.h"
 
 // ------------------------------------------------------------------ connections to servers
 
@@ -141,19 +85,6 @@ struct TFetchResult
     TBool iReused;
     TInt iDnsMs, iConnectMs, iTlsMs, iFirstByteMs, iTotalMs;
     TBuf<40> iError;            // where it failed
-    };
-
-// Waits for the UI thread's stop request (RThread::RequestComplete on Exit).
-class CStopper : public CActive
-    {
-public:
-    CStopper(CWaiter& aW) : CActive(EPriorityHigh), iW(aW) { CActiveScheduler::Add(this); iStatus = KRequestPending; SetActive(); }
-    ~CStopper() { Cancel(); }
-    TRequestStatus* StatusPtr() { return &iStatus; }
-private:
-    void RunL() { iW.Stop(); }
-    void DoCancel() { TRequestStatus* s = &iStatus; User::RequestComplete(s, KErrCancel); }
-    CWaiter& iW;
     };
 
 class CWorker : public CBase
@@ -343,11 +274,47 @@ void CWorker::HandleClientL()
     if (sp2 >= 0) target.Set(target.Left(sp2));
 
     TBuf8<300> head;
+    if (target.Left(4).Compare(_L8("/gps")) == 0)
+        {
+        // the GPS (read by the GPS thread): /gps?addr=<12 hex digits> keeps it wanted, /gps?stop=1 lets it go
+        TGpsState& g = iStats.iGps;
+        TPtrC8 q = target.Mid(4);
+        TInt a = q.Find(_L8("addr="));
+        TTime now;
+        now.HomeTime();
+        HBufC8* bodyBuf = HBufC8::NewLC(600);
+        TPtr8 body = bodyBuf->Des();
+        g.iLock.Wait();
+        if (q.Find(_L8("stop=1")) >= 0) g.iWanted = EFalse;
+        else if (a >= 0 && q.Length() >= a + 5 + 12)
+            {
+            g.iAddr = q.Mid(a + 5, 12);
+            g.iAddr.UpperCase();
+            g.iWanted = ETrue;
+            g.iLastAsk = now;
+            }
+        TInt age = -1;
+        if (g.iLastData.Int64() != TInt64(0))
+            {
+            TInt64 us = now.MicroSecondsFrom(g.iLastData).Int64();
+            us /= 1000;
+            age = us.GetTInt();
+            }
+        body.AppendFormat(_L8("state=%S\ninfo=%S\nage=%d\nsentences=%d\nchannel=%d\nconnects=%d\n"),
+            &g.iState, &g.iInfo, age, g.iSentences, g.iChannel, g.iConnects);
+        if (g.iGga.Length() > 0) { body.Append(g.iGga); body.Append(_L8("\n")); }
+        if (g.iRmc.Length() > 0) { body.Append(g.iRmc); body.Append(_L8("\n")); }
+        g.iLock.Signal();
+        head.Format(_L8("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n"), body.Length());
+        ReplyL(head, body);
+        CleanupStack::PopAndDestroy(2, reqBuf);     // body, req
+        return;
+        }
     if (target.Left(9).Compare(_L8("/fetch?u=")) != 0)
         {
         // anything else: a short hello (step 1's test still works)
         TBuf8<200> body;
-        body.Format(_L8("Net Helper 9300 0.3: hello from native code, request %d. Use /fetch?u=<URL>\n"), iStats.iRequests);
+        body.Format(_L8("Net Helper 9300 0.4: hello from native code, request %d. Use /fetch?u=<URL>\n"), iStats.iRequests);
         head.Format(_L8("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n"), body.Length());
         AddStatLine(iStats, _L("hello"));
         ReplyL(head, body);

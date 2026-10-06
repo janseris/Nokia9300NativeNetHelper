@@ -5,7 +5,7 @@ TARGETPATH        \system\apps\nethelper
 LANG              SC
 
 SOURCEPATH        ..\src
-SOURCE            nethelper.cpp worker.cpp
+SOURCE            nethelper.cpp worker.cpp gps.cpp
 
 SOURCEPATH        ..\group
 RESOURCE          nethelper.rss
@@ -14,4 +14,4 @@ USERINCLUDE       ..\inc
 SYSTEMINCLUDE     \epoc32\include
 
 LIBRARY           euser.lib apparc.lib cone.lib eikcore.lib eikcoctl.lib bafl.lib egul.lib
-LIBRARY           ckndlg.lib ckncore.lib esock.lib insock.lib gdi.lib securesocket.lib
+LIBRARY           ckndlg.lib ckncore.lib esock.lib insock.lib gdi.lib securesocket.lib bluetooth.lib sdpagent.lib sdpdatabase.lib

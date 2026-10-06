@@ -25,6 +25,7 @@ void CNetHelperAppUi::ConstructL()
     // blocking-style waits there never stall the UI
     TBuf<40> name;
     name.Format(_L("NetHelperWorker%u"), User::TickCount());
+    User::LeaveIfError(iStats.iGps.iLock.CreateLocal());
     TInt err = iWorker.Create(name, NetWorkerThread, 16384, 16384, 3 * 1024 * 1024, &iStats);
     if (err == KErrNone)
         {
@@ -34,6 +35,12 @@ void CNetHelperAppUi::ConstructL()
     else
         {
         iStats.iStatus.Format(_L("Worker thread did not start: error %d"), err);
+        }
+    name.Format(_L("NetHelperGps%u"), User::TickCount());
+    if (iGpsThread.Create(name, NetGpsThread, 16384, 16384, 512 * 1024, &iStats) == KErrNone)
+        {
+        iGpsOpen = ETrue;
+        iGpsThread.Resume();
         }
     iTimer = CPeriodic::NewL(CActive::EPriorityStandard);
     iTimer->Start(500000, 500000, TCallBack(Tick, this));
@@ -54,50 +61,41 @@ TInt CNetHelperAppUi::Tick(TAny* aSelf)
 CNetHelperAppUi::~CNetHelperAppUi()
     {
     delete iTimer;
-    if (iWorkerOpen)
-        {
-        // Ask the worker to stop and close its connections itself (killing it in the middle of
-        // a socket or TLS call is what Net Helper 0.2 did on Exit); kill only if it hangs (3 s).
-        if (iWorker.ExitType() == EExitPending)
-            {
-            TRequestStatus logon;
-            iWorker.Logon(logon);
-            if (iStats.iStop)
-                {
-                TRequestStatus* stop = iStats.iStop;
-                iWorker.RequestComplete(stop, KErrCancel);
-                }
-            RTimer timer;
-            TRequestStatus tick;
-            if (timer.CreateLocal() == KErrNone)
-                {
-                timer.After(tick, 3000000);
-                User::WaitForRequest(logon, tick);
-                if (logon == KRequestPending)
-                    {
-                    iWorker.LogonCancel(logon);
-                    User::WaitForRequest(logon);
-                    iWorker.Kill(KErrNone);
-                    }
-                else
-                    {
-                    timer.Cancel();
-                    User::WaitForRequest(tick);
-                    }
-                timer.Close();
-                }
-            else
-                {
-                User::WaitForRequest(logon);
-                }
-            }
-        iWorker.Close();
-        }
+    if (iGpsOpen) { StopThread(iGpsThread, iStats.iGps.iStop); iGpsThread.Close(); }
+    if (iWorkerOpen) { StopThread(iWorker, iStats.iStop); iWorker.Close(); }
+    iStats.iGps.iLock.Close();
     if (iView)
         {
         iEikonEnv->RemoveFromStack(iView);
         delete iView;
         }
+    }
+
+// Asks a thread to stop and close its sockets itself (killing it in the middle of a socket, TLS or
+// Bluetooth call is what Net Helper 0.2 did on Exit); kills it only if it hangs for 3 s.
+void CNetHelperAppUi::StopThread(RThread& aThread, TRequestStatus* aStop)
+    {
+    if (aThread.ExitType() != EExitPending) return;
+    TRequestStatus logon;
+    aThread.Logon(logon);
+    if (aStop) aThread.RequestComplete(aStop, KErrCancel);
+    RTimer timer;
+    if (timer.CreateLocal() != KErrNone) { User::WaitForRequest(logon); return; }
+    TRequestStatus tick;
+    timer.After(tick, 3000000);
+    User::WaitForRequest(logon, tick);
+    if (logon == KRequestPending)
+        {
+        aThread.LogonCancel(logon);
+        User::WaitForRequest(logon);
+        aThread.Kill(KErrNone);
+        }
+    else
+        {
+        timer.Cancel();
+        User::WaitForRequest(tick);
+        }
+    timer.Close();
     }
 
 void CNetHelperAppUi::HandleCommandL(TInt aCommand)
@@ -109,8 +107,8 @@ void CNetHelperAppUi::HandleCommandL(TInt aCommand)
             break;
         case ENetHelperCmdInfo:
             {
-            _LIT(KTitle, "Net Helper 9300 0.3");
-            _LIT(KText, "Native helper for the Java apps. GET http://127.0.0.1:8123/fetch?u=<URL> fetches the URL over kept-open connections.");
+            _LIT(KTitle, "Net Helper 9300 0.4");
+            _LIT(KText, "Native helper for the Java apps. GET http://127.0.0.1:8123/fetch?u=<URL> fetches the URL over kept-open connections; /gps?addr=<BT address> reads the Bluetooth GPS.");
             CCknInfoDialog::RunDlgLD(KTitle, KText);
             }
             break;
@@ -154,7 +152,7 @@ void CNetHelperView::Draw(const TRect& aRect) const
     gc.SetPenColor(KRgbBlack);
     TInt h = font->HeightInPixels() + 5;
     TPoint p(rect.iTl.iX + 10, rect.iTl.iY + h + 2);
-    gc.DrawText(_L("Net Helper 9300 0.3 - native helper for the Java apps"), p);
+    gc.DrawText(_L("Net Helper 9300 0.4 - native helper for the Java apps"), p);
     p.iY += h;
     gc.DrawText(iStats.iStatus, p);
     p.iY += h;

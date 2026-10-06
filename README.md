@@ -22,7 +22,12 @@ on the phone, listens there and will do the network work for them over kept-open
   - Probe 3.2 → *Net Helper: dlaždice přímo vs přes helper* compares it with direct requests.
 - **0.3:** Exit stops the network thread cleanly (it closes its connections itself; killed only
   if it hangs for 3 s). 0.2 killed it, possibly in the middle of socket/TLS calls; the phone restarted after Exit (likely cause).
-- Mapy 4.4+ uses it when it's running.
+- **0.4:** reads the **Bluetooth GPS natively** in its own thread (SDP search for the serial port
+  service, RFCOMM, reconnects; lets Bluetooth go after a minute without requests).
+  `GET /gps?addr=<12 hex digits>` answers `state= info= age= sentences= channel= connects=` lines and
+  the latest `$..GGA` / `$..RMC` sentences; `/gps?stop=1` lets the GPS go. Java reading Bluetooth while
+  downloading slowed every download to seconds and crashed jes-java-comms (E32USER-CBase 40, Probe 3.5).
+- Mapy 4.4+ downloads through it when it's running; Mapy 4.15+ also takes the GPS from it.
 
 ## Install
 
