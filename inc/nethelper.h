@@ -29,6 +29,7 @@ struct TNetStats
     TBuf<100> iStatus;
     TBuf<110> iLines[KStatLines];
     TInt iNextLine;
+    TRequestStatus* iStop;      // the worker's stop request: the UI completes it on Exit
     };
 
 void AddStatLine(TNetStats& aStats, const TDesC& aLine);

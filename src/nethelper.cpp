@@ -56,7 +56,41 @@ CNetHelperAppUi::~CNetHelperAppUi()
     delete iTimer;
     if (iWorkerOpen)
         {
-        iWorker.Kill(KErrNone);         // its sockets are closed by the system
+        // Ask the worker to stop and close its connections itself (killing it in the middle of
+        // a socket or TLS call is what Net Helper 0.2 did on Exit); kill only if it hangs (3 s).
+        if (iWorker.ExitType() == EExitPending)
+            {
+            TRequestStatus logon;
+            iWorker.Logon(logon);
+            if (iStats.iStop)
+                {
+                TRequestStatus* stop = iStats.iStop;
+                iWorker.RequestComplete(stop, KErrCancel);
+                }
+            RTimer timer;
+            TRequestStatus tick;
+            if (timer.CreateLocal() == KErrNone)
+                {
+                timer.After(tick, 3000000);
+                User::WaitForRequest(logon, tick);
+                if (logon == KRequestPending)
+                    {
+                    iWorker.LogonCancel(logon);
+                    User::WaitForRequest(logon);
+                    iWorker.Kill(KErrNone);
+                    }
+                else
+                    {
+                    timer.Cancel();
+                    User::WaitForRequest(tick);
+                    }
+                timer.Close();
+                }
+            else
+                {
+                User::WaitForRequest(logon);
+                }
+            }
         iWorker.Close();
         }
     if (iView)
@@ -75,7 +109,7 @@ void CNetHelperAppUi::HandleCommandL(TInt aCommand)
             break;
         case ENetHelperCmdInfo:
             {
-            _LIT(KTitle, "Net Helper 9300 0.2");
+            _LIT(KTitle, "Net Helper 9300 0.3");
             _LIT(KText, "Native helper for the Java apps. GET http://127.0.0.1:8123/fetch?u=<URL> fetches the URL over kept-open connections.");
             CCknInfoDialog::RunDlgLD(KTitle, KText);
             }
@@ -120,7 +154,7 @@ void CNetHelperView::Draw(const TRect& aRect) const
     gc.SetPenColor(KRgbBlack);
     TInt h = font->HeightInPixels() + 5;
     TPoint p(rect.iTl.iX + 10, rect.iTl.iY + h + 2);
-    gc.DrawText(_L("Net Helper 9300 0.2 - native helper for the Java apps"), p);
+    gc.DrawText(_L("Net Helper 9300 0.3 - native helper for the Java apps"), p);
     p.iY += h;
     gc.DrawText(iStats.iStatus, p);
     p.iY += h;

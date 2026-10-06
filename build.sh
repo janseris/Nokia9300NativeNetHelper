@@ -9,7 +9,8 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 export EPOCROOT=$SYM/s80_20/ PATH=$SYM/wrap:$PATH
 cd "$HERE/group"
 bldmake bldfiles
-abld build armi urel
+abld build armi urel 2>&1 | tee /tmp/nethelper_build.log
+if grep -q "Error [0-9]" /tmp/nethelper_build.log; then echo "BUILD FAILED"; exit 1; fi
 E=$SYM/s80_20/epoc32
 mkdir -p "$HERE/bin"
 sed "s|EPOC32|$E|g" "$HERE/sis/nethelper.pkg.in" > "$HERE/bin/nethelper.pkg"

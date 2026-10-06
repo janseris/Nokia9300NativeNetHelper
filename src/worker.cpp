@@ -20,7 +20,7 @@ _LIT8(KReused8, "reused");
 _LIT8(KNew8, "new");
 _LIT(KReused, "reused");
 _LIT(KNew, "new");
-_LIT8(KDefaultUa, "NetHelper9300/0.2 (Symbian native helper; Nokia 9300; SymbianOS/7.0s Series80/2.0)");
+_LIT8(KDefaultUa, "NetHelper9300/0.3 (Symbian native helper; Nokia 9300; SymbianOS/7.0s Series80/2.0)");
 
 void AddStatLine(TNetStats& aStats, const TDesC& aLine)
     {
@@ -58,18 +58,31 @@ public:
     TInt Wait(TInt aMs, MCancelIo* aOp)
         {
         SetActive();
+        iCurrent = aOp;
+        if (iStopping && aOp) aOp->CancelIo();          // shutting down: don't start waiting
         iTimeout->iFired = EFalse;
         iTimeout->iOp = aOp;
         if (aMs > 0 && aOp) iTimeout->After(aMs * 1000);
         iWait->Start();
+        iCurrent = NULL;
         iTimeout->Cancel();
         TInt r = iStatus.Int();
         if (iTimeout->iFired && r != KErrNone) r = KErrTimedOut;
         return r;
         }
 private:
+public:
+    void Stop()
+        {
+        iStopping = ETrue;
+        if (iCurrent) iCurrent->CancelIo();
+        }
+    TBool Stopping() const { return iStopping; }
+private:
     void RunL() { iWait->AsyncStop(); }
     void DoCancel() {}
+    MCancelIo* iCurrent;
+    TBool iStopping;
     CTimeout* iTimeout;
     CActiveSchedulerWait* iWait;
     };
@@ -116,7 +129,7 @@ public:
 class CListenIo : public CBase, public MCancelIo
     {
 public:
-    void CancelIo() { iSock.CancelAll(); }
+    void CancelIo() { iSock.CancelAccept(); }
     RSocket iSock;
     };
 
@@ -128,6 +141,19 @@ struct TFetchResult
     TBool iReused;
     TInt iDnsMs, iConnectMs, iTlsMs, iFirstByteMs, iTotalMs;
     TBuf<40> iError;            // where it failed
+    };
+
+// Waits for the UI thread's stop request (RThread::RequestComplete on Exit).
+class CStopper : public CActive
+    {
+public:
+    CStopper(CWaiter& aW) : CActive(EPriorityHigh), iW(aW) { CActiveScheduler::Add(this); iStatus = KRequestPending; SetActive(); }
+    ~CStopper() { Cancel(); }
+    TRequestStatus* StatusPtr() { return &iStatus; }
+private:
+    void RunL() { iW.Stop(); }
+    void DoCancel() { TRequestStatus* s = &iStatus; User::RequestComplete(s, KErrCancel); }
+    CWaiter& iW;
     };
 
 class CWorker : public CBase
@@ -156,6 +182,7 @@ private:
     CListenIo* iListen;
     CClientIo* iClient;
     CWaiter* iW;
+    CStopper* iStopper;
     RPointerArray<CConn> iConns;
     TBuf8<4096> iTmp;
     TSockXfrLength iXfr;
@@ -219,6 +246,8 @@ TInt CWorker::Ms(const TTime& aFrom)
 
 CWorker::~CWorker()
     {
+    iStats.iStop = NULL;
+    delete iStopper;
     iConns.ResetAndDestroy();
     if (iClient) { iClient->iSock.Close(); delete iClient; }
     if (iListen) { iListen->iSock.Close(); delete iListen; }
@@ -230,6 +259,8 @@ void CWorker::ConstructL()
     {
     iW = new (ELeave) CWaiter;
     iW->ConstructL();
+    iStopper = new (ELeave) CStopper(*iW);
+    iStats.iStop = iStopper->StatusPtr();
     iListen = new (ELeave) CListenIo;
     iClient = new (ELeave) CClientIo;
     User::LeaveIfError(iSs.Connect());
@@ -252,11 +283,12 @@ void CWorker::CountOpen()
 
 void CWorker::ServeL()
     {
-    for (;;)
+    while (!iW->Stopping())
         {
         User::LeaveIfError(iClient->iSock.Open(iSs));
         iListen->iSock.Accept(iClient->iSock, iW->Status());
-        TInt err = iW->Wait(0, NULL);
+        TInt err = iW->Wait(0, iListen);
+        if (iW->Stopping()) { iClient->iSock.Close(); break; }
         if (err == KErrNone)
             {
             TRAP(err, HandleClientL());
@@ -315,7 +347,7 @@ void CWorker::HandleClientL()
         {
         // anything else: a short hello (step 1's test still works)
         TBuf8<200> body;
-        body.Format(_L8("Net Helper 9300 0.2: hello from native code, request %d. Use /fetch?u=<URL>\n"), iStats.iRequests);
+        body.Format(_L8("Net Helper 9300 0.3: hello from native code, request %d. Use /fetch?u=<URL>\n"), iStats.iRequests);
         head.Format(_L8("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n"), body.Length());
         AddStatLine(iStats, _L("hello"));
         ReplyL(head, body);

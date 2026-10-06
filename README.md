@@ -20,7 +20,9 @@ on the phone, listens there and will do the network work for them over kept-open
   - The network work runs in its own thread (blocking-style waits on a nested active scheduler);
     one request at a time.
   - Probe 3.2 → *Net Helper: dlaždice přímo vs přes helper* compares it with direct requests.
-- Next: make Mapy use it when it's running (falling back to direct requests).
+- **0.3:** Exit stops the network thread cleanly (it closes its connections itself; killed only
+  if it hangs for 3 s). 0.2 killed it, possibly in the middle of socket/TLS calls; the phone restarted after Exit (likely cause).
+- Mapy 4.4+ uses it when it's running.
 
 ## Install
 
