@@ -47,6 +47,7 @@ struct TNetStats
     TBuf<110> iLines[KStatLines];
     TInt iNextLine;
     TRequestStatus* iStop;      // the worker's stop request: the UI completes it on Exit
+    TInt iCacheFiles, iCacheKB, iCacheHits, iCacheStored;
     TGpsState iGps;
     };
 

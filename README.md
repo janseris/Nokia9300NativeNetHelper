@@ -35,6 +35,12 @@ on the phone, listens there and will do the network work for them over kept-open
   request waited behind tile downloads: up to 54 s in Probe 3.6). The GPS tries every serial port
   channel the phone offers (an Android offered 6, which stayed silent, and 11, which sent NMEA) and
   remembers the one that sends data. The screen wraps long lines and shows the GPS state; F = full screen.
+- **0.7:** a **tile cache on disk** (`C:\Data\NetHelper\tiles\`, one file per tile, 32 MB, least
+  recently used out): `/fetch?u=<URL>&cache=1` answers from it or stores what it downloads,
+  `/ahead?u=<URL>` only stores (download ahead, no body back). Mapy 4.16 spent 3.5-13 s saving each
+  tile into Java's record store, which held up the whole Java VM; with this Mapy 4.18 saves nothing
+  itself. The GPS server on 8124 gives up on a client that sends nothing for 3 s (GPS requests had
+  stalled for 4 minutes).
 - Mapy 4.4+ downloads through it when it's running; Mapy 4.15+ also takes the GPS from it.
 
 ## Install

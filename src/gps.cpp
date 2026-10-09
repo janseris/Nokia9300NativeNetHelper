@@ -138,13 +138,28 @@ void GpsReply(TGpsState& g, const TDesC8& aQuery, TDes8& aBody)
 // A tiny server for /gps on 127.0.0.1:8124 in the GPS thread itself (an active object, it runs
 // while the thread waits for Bluetooth), so a GPS request never waits behind a tile download in
 // the HTTP worker (Probe 3.6: up to 54 s on 8123).
+class CGpsServer;
+
+// Gives up on a client that connects but sends nothing (seen: GPS requests stuck for minutes).
+class CServerTimeout : public CTimer
+    {
+public:
+    CServerTimeout(CGpsServer& aServer) : CTimer(EPriorityStandard), iServer(aServer) {}
+    void ConstructL() { CTimer::ConstructL(); CActiveScheduler::Add(this); }
+    void RunL();
+    CGpsServer& iServer;
+    };
+
 class CGpsServer : public CActive
     {
 public:
+    void Abort() { Cancel(); Next(); }
     CGpsServer(TGpsState& aGps, RSocketServ& aSs) : CActive(EPriorityHigh), iGps(aGps), iSs(aSs) { CActiveScheduler::Add(this); }
-    ~CGpsServer() { Cancel(); if (iConnOpen) iConn.Close(); iListen.Close(); }
+    ~CGpsServer() { delete iTimeout; Cancel(); if (iConnOpen) iConn.Close(); iListen.Close(); }
     void ConstructL()
         {
+        iTimeout = new (ELeave) CServerTimeout(*this);
+        iTimeout->ConstructL();
         User::LeaveIfError(iListen.Open(iSs, KAfInet, KSockStream, KProtocolInetTcp));
         iListen.SetOpt(KSoReuseAddr, KSolInetIp, 1);
         TInetAddr addr(INET_ADDR(127, 0, 0, 1), KNetHelperPort + 1);
@@ -161,6 +176,7 @@ private:
         iConnOpen = ETrue;
         iReq.Zero();
         iState = EAccept;
+        if (iTimeout) iTimeout->Cancel();
         iListen.Accept(iConn, iStatus);
         SetActive();
         }
@@ -171,6 +187,7 @@ private:
         if (iState == ERead && iReq.Length() + iRecv.Length() <= iReq.MaxLength()) iReq.Append(iRecv);
         if (iState == EAccept || (iReq.Find(_L8("\r\n\r\n")) < 0 && iReq.Length() < iReq.MaxLength()))
             {
+            if (iState == EAccept && iTimeout) { iTimeout->Cancel(); iTimeout->After(3000000); }   // 3 s for the request
             iState = ERead;
             iConn.RecvOneOrMore(iRecv, 0, iStatus, iXfr);
             SetActive();
@@ -194,6 +211,7 @@ private:
         else if (iState == ERead) iConn.CancelRecv();
         else iConn.CancelWrite();
         }
+    CServerTimeout* iTimeout;
     TGpsState& iGps;
     RSocketServ& iSs;
     RSocket iListen, iConn;
@@ -205,6 +223,8 @@ private:
     TBuf8<700> iBody;
     TBuf8<900> iReply;
     };
+
+void CServerTimeout::RunL() { iServer.Abort(); }
 
 // ------------------------------------------------------------------ the GPS reader
 

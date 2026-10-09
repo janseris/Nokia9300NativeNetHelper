@@ -20,7 +20,7 @@ _LIT8(KReused8, "reused");
 _LIT8(KNew8, "new");
 _LIT(KReused, "reused");
 _LIT(KNew, "new");
-_LIT8(KDefaultUa, "NetHelper9300/0.6 (Symbian native helper; Nokia 9300; SymbianOS/7.0s Series80/2.0)");
+_LIT8(KDefaultUa, "NetHelper9300/0.7 (Symbian native helper; Nokia 9300; SymbianOS/7.0s Series80/2.0)");
 
 void AddStatLine(TNetStats& aStats, const TDesC& aLine)
     {
@@ -30,6 +30,7 @@ void AddStatLine(TNetStats& aStats, const TDesC& aLine)
     }
 
 #include "wait.h"
+#include "tilecache.h"
 
 // ------------------------------------------------------------------ connections to servers
 
@@ -117,6 +118,8 @@ private:
     RPointerArray<CConn> iConns;
     TBuf8<4096> iTmp;
     TSockXfrLength iXfr;
+    RFs iFs;
+    CTileCache* iCache;
     };
 
 static TInt FindNoCase(const TDesC8& aIn, const TDesC8& aWhat)
@@ -180,6 +183,8 @@ CWorker::~CWorker()
     iStats.iStop = NULL;
     delete iStopper;
     iConns.ResetAndDestroy();
+    delete iCache;
+    iFs.Close();
     if (iClient) { iClient->iSock.Close(); delete iClient; }
     if (iListen) { iListen->iSock.Close(); delete iListen; }
     delete iW;
@@ -195,6 +200,17 @@ void CWorker::ConstructL()
     iListen = new (ELeave) CListenIo;
     iClient = new (ELeave) CClientIo;
     User::LeaveIfError(iSs.Connect());
+    // the tile cache on disk (32 MB); without it, /fetch just doesn't cache
+    if (iFs.Connect() == KErrNone)
+        {
+        iCache = new CTileCache(iFs);
+        TRAPD(err, iCache->ConstructL(32 * 1024 * 1024));
+        if (err != KErrNone || !iCache)
+            {
+            delete iCache; iCache = NULL;
+            TBuf<60> l; l.Format(_L("Tile cache not available: %d"), err); AddStatLine(iStats, l);
+            }
+        }
     User::LeaveIfError(iListen->iSock.Open(iSs, KAfInet, KSockStream, KProtocolInetTcp));
     iListen->iSock.SetOpt(KSoReuseAddr, KSolInetIp, 1);
     TInetAddr addr(INET_ADDR(127, 0, 0, 1), KNetHelperPort);
@@ -285,11 +301,13 @@ void CWorker::HandleClientL()
         CleanupStack::PopAndDestroy(2, reqBuf);     // body, req
         return;
         }
-    if (target.Left(9).Compare(_L8("/fetch?u=")) != 0)
+    // /ahead?u=<URL>: into the cache only (download ahead), the answer has no body
+    TBool ahead = target.Left(9).Compare(_L8("/ahead?u=")) == 0;
+    if (!ahead && target.Left(9).Compare(_L8("/fetch?u=")) != 0)
         {
         // anything else: a short hello (step 1's test still works)
         TBuf8<200> body;
-        body.Format(_L8("Net Helper 9300 0.6: hello from native code, request %d. Use /fetch?u=<URL>\n"), iStats.iRequests);
+        body.Format(_L8("Net Helper 9300 0.7: hello from native code, request %d. Use /fetch?u=<URL>\n"), iStats.iRequests);
         head.Format(_L8("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n"), body.Length());
         AddStatLine(iStats, _L("hello"));
         ReplyL(head, body);
@@ -300,9 +318,32 @@ void CWorker::HandleClientL()
     HBufC8* urlBuf = target.Mid(9).AllocLC();
     TPtr8 url = urlBuf->Des();
     TInt amp = url.Locate('&');
+    TBool useCache = ahead || (amp >= 0 && url.Mid(amp).Find(_L8("cache=1")) >= 0);
     if (amp >= 0) url.SetLength(amp);
     PercentDecode(url);
     TPtrC8 ua = Header(req, _L8("X-Ua"));
+
+    // 1. the cache on disk
+    if (useCache && iCache)
+        {
+        TTime tc;
+        tc.HomeTime();
+        TBuf8<100> type;
+        HBufC8* cached = ahead ? NULL : iCache->Get(url, type);
+        TBool hit = cached != NULL || (ahead && iCache->Has(url));
+        if (hit)
+            {
+            CleanupStack::PushL(cached);
+            TPtrC8 body = cached ? TPtrC8(*cached) : TPtrC8();
+            head.Format(_L8("HTTP/1.0 200 OK\r\nContent-Type: %S\r\nContent-Length: %d\r\nX-Helper: cache=hit total=%d\r\nConnection: close\r\n\r\n"),
+                &type, body.Length(), Ms(tc));
+            ReplyL(head, body);
+            iStats.iCacheHits = iCache->iHits;
+            iStats.iChanged++;
+            CleanupStack::PopAndDestroy(3, reqBuf);     // cached, url, req
+            return;
+            }
+        }
 
     TFetchResult res;
     res.iCode = 0;
@@ -331,10 +372,11 @@ void CWorker::HandleClientL()
     TBuf8<120> info;
     info.Format(_L8("conn=%S dns=%d connect=%d tls=%d first-byte=%d total=%d"),
         res.iReused ? &KReused8() : &KNew8(), res.iDnsMs, res.iConnectMs, res.iTlsMs, res.iFirstByteMs, res.iTotalMs);
+    if (err == KErrNone && useCache && iCache && res.iCode == 200 && res.iBody) iCache->Put(url, res.iType, *res.iBody);
     if (err == KErrNone)
         {
         if (res.iReused) iStats.iReused++;
-        TPtrC8 body = res.iBody ? TPtrC8(*res.iBody) : TPtrC8();
+        TPtrC8 body = res.iBody && !ahead ? TPtrC8(*res.iBody) : TPtrC8();     // ahead: stored, not sent
         head.Format(_L8("HTTP/1.0 %d Upstream\r\nContent-Type: %S\r\nContent-Length: %d\r\nX-Helper: %S\r\nConnection: close\r\n\r\n"),
             res.iCode, &res.iType, body.Length(), &info);
         line.Format(_L("%d %S %d B %S %d ms"), res.iCode, &host16, body.Length(), res.iReused ? &KReused() : &KNew(), res.iTotalMs);
@@ -354,6 +396,7 @@ void CWorker::HandleClientL()
         AddStatLine(iStats, line);
         ReplyL(head, body);
         }
+    if (iCache) { iStats.iCacheFiles = iCache->iFiles; iStats.iCacheKB = iCache->iTotal / 1024; iStats.iCacheHits = iCache->iHits; iStats.iCacheStored = iCache->iStored; }
     CleanupStack::PopAndDestroy(3, reqBuf);     // body, url, req
     }
 
