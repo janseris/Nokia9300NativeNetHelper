@@ -68,7 +68,7 @@ void CNetHelperAppUi::Measure()
         iStats.iDiskFreeKB = kb.GetTInt();
         }
     // every drive with what the file server says it is (RAM drive, flash, memory card, ROM...)
-    if (iTicks % 20 == 1)
+    if (iTicks % 20 == 2)      // Measure runs when iTicks % 4 == 2 (it was % 20 == 1: never)
         {
         TDriveList list;
         if (fs.DriveList(list) == KErrNone)
@@ -168,7 +168,7 @@ void CNetHelperAppUi::HandleCommandL(TInt aCommand)
             break;
         case ENetHelperCmdInfo:
             {
-            _LIT(KTitle, "Net Helper 9300 0.10");
+            _LIT(KTitle, "Net Helper 9300 0.11");
             _LIT(KText, "Native helper for the Java apps. GET http://127.0.0.1:8123/fetch?u=<URL> fetches the URL over kept-open connections; /gps?addr=<BT address> (also on 127.0.0.1:8124, answered at once) reads the Bluetooth GPS. F: full screen.");
             CCknInfoDialog::RunDlgLD(KTitle, KText);
             }
@@ -255,7 +255,7 @@ void CNetHelperView::Draw(const TRect& aRect) const
     gc.SetPenColor(KRgbBlack);
     TInt h = font->HeightInPixels() + 5, w = rect.Width() - 20, bottom = rect.iBr.iY;
     TPoint p(rect.iTl.iX + 10, rect.iTl.iY + h + 2 - iScroll * h);
-    Wrapped(gc, *font, _L("Net Helper 9300 0.10 - native helper for the Java apps (F: full screen, arrows: scroll)"), p, w, h, bottom);
+    Wrapped(gc, *font, _L("Net Helper 9300 0.11 - native helper for the Java apps (F: full screen, arrows: scroll)"), p, w, h, bottom);
     Wrapped(gc, *font, iStats.iStatus, p, w, h, bottom);
     TBuf<200> n;
     n.Format(_L("Requests %d | fetched %d, %d on a kept-open connection | connections opened %d, open %d | errors %d"),
