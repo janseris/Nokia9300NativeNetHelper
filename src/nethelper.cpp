@@ -2,6 +2,8 @@
 #include <cknenv.h>
 #include <ckninfo.h>
 #include <eikbtgpc.h>
+#include <e32hal.h>
+#include <f32file.h>
 #include <nethelper.rsg>
 #include "nethelper.h"
 #include "nethelper.hrh"
@@ -48,9 +50,29 @@ void CNetHelperAppUi::ConstructL()
     iView->DrawNow();
     }
 
+// RAM of the whole phone (free now, lowest seen) and the free space on C:
+void CNetHelperAppUi::Measure()
+    {
+    TMemoryInfoV1Buf info;
+    if (UserHal::MemoryInfo(info) == KErrNone)
+        {
+        iStats.iRamTotalKB = info().iTotalRamInBytes / 1024;
+        iStats.iRamFreeKB = info().iFreeRamInBytes / 1024;
+        if (iStats.iRamMinFreeKB == 0 || iStats.iRamFreeKB < iStats.iRamMinFreeKB) iStats.iRamMinFreeKB = iStats.iRamFreeKB;
+        }
+    TVolumeInfo vol;
+    if (iEikonEnv->FsSession().Volume(vol, EDriveC) == KErrNone)
+        {
+        TInt64 kb = vol.iFree / TInt64(1024);
+        iStats.iDiskFreeKB = kb.GetTInt();
+        }
+    iStats.iChanged++;
+    }
+
 TInt CNetHelperAppUi::Tick(TAny* aSelf)
     {
     CNetHelperAppUi* self = (CNetHelperAppUi*) aSelf;
+    if (self->iTicks++ % 4 == 0) self->Measure();
     if (self->iStats.iChanged != self->iSeen)
         {
         self->iSeen = self->iStats.iChanged;
@@ -108,7 +130,7 @@ void CNetHelperAppUi::HandleCommandL(TInt aCommand)
             break;
         case ENetHelperCmdInfo:
             {
-            _LIT(KTitle, "Net Helper 9300 0.7");
+            _LIT(KTitle, "Net Helper 9300 0.8");
             _LIT(KText, "Native helper for the Java apps. GET http://127.0.0.1:8123/fetch?u=<URL> fetches the URL over kept-open connections; /gps?addr=<BT address> (also on 127.0.0.1:8124, answered at once) reads the Bluetooth GPS. F: full screen.");
             CCknInfoDialog::RunDlgLD(KTitle, KText);
             }
@@ -185,13 +207,17 @@ void CNetHelperView::Draw(const TRect& aRect) const
     gc.SetPenColor(KRgbBlack);
     TInt h = font->HeightInPixels() + 5, w = rect.Width() - 20, bottom = rect.iBr.iY;
     TPoint p(rect.iTl.iX + 10, rect.iTl.iY + h + 2);
-    Wrapped(gc, *font, _L("Net Helper 9300 0.7 - native helper for the Java apps (F: full screen)"), p, w, h, bottom);
+    Wrapped(gc, *font, _L("Net Helper 9300 0.8 - native helper for the Java apps (F: full screen)"), p, w, h, bottom);
     Wrapped(gc, *font, iStats.iStatus, p, w, h, bottom);
     TBuf<200> n;
     n.Format(_L("Requests %d | fetched %d, %d on a kept-open connection | connections opened %d, open %d | errors %d"),
         iStats.iRequests, iStats.iFetches, iStats.iReused, iStats.iNewConns, iStats.iOpenConns, iStats.iErrors);
     Wrapped(gc, *font, n, p, w, h, bottom);
-    n.Format(_L("Tile cache: %d tiles, %d KB of 32 MB | from the cache %d, stored %d"), iStats.iCacheFiles, iStats.iCacheKB, iStats.iCacheHits, iStats.iCacheStored);
+    n.Format(_L("RAM: %d KB in all, free %d KB (lowest %d KB) | C: free %d KB"),
+        iStats.iRamTotalKB, iStats.iRamFreeKB, iStats.iRamMinFreeKB, iStats.iDiskFreeKB);
+    Wrapped(gc, *font, n, p, w, h, bottom);
+    n.Format(_L("Tile cache: %d tiles, %d KB of 32 MB | from the cache %d (last read %d ms), stored %d (last save %d ms)"),
+        iStats.iCacheFiles, iStats.iCacheKB, iStats.iCacheHits, iStats.iCacheReadMs, iStats.iCacheStored, iStats.iCacheSaveMs);
     Wrapped(gc, *font, n, p, w, h, bottom);
     // the GPS (read under its lock)
     TGpsState& g = ((TNetStats&) iStats).iGps;

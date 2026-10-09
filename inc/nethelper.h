@@ -47,7 +47,8 @@ struct TNetStats
     TBuf<110> iLines[KStatLines];
     TInt iNextLine;
     TRequestStatus* iStop;      // the worker's stop request: the UI completes it on Exit
-    TInt iCacheFiles, iCacheKB, iCacheHits, iCacheStored;
+    TInt iCacheFiles, iCacheKB, iCacheHits, iCacheStored, iCacheSaveMs, iCacheReadMs;
+    TInt iRamTotalKB, iRamFreeKB, iRamMinFreeKB, iDiskFreeKB;   // updated by the UI every 2 s
     TGpsState iGps;
     };
 
@@ -86,7 +87,8 @@ private:
     TBool iGpsOpen;
     void StopThread(RThread& aThread, TRequestStatus* aStop);
     CPeriodic* iTimer;
-    TInt iSeen;
+    TInt iSeen, iTicks;
+    void Measure();
     };
 
 class CNetHelperDocument : public CEikDocument

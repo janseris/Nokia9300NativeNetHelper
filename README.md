@@ -41,6 +41,9 @@ on the phone, listens there and will do the network work for them over kept-open
   tile into Java's record store, which held up the whole Java VM; with this Mapy 4.18 saves nothing
   itself. The GPS server on 8124 gives up on a client that sends nothing for 3 s (GPS requests had
   stalled for 4 minutes).
+- **0.8:** measures the phone's **RAM** (total, free, lowest free seen) and the free space on C:
+  every 2 s (`UserHal::MemoryInfo`, `RFs::Volume`), on the screen and at `GET /mem`; the screen also
+  shows how long the last tile took to save to / read from the cache.
 - Mapy 4.4+ downloads through it when it's running; Mapy 4.15+ also takes the GPS from it.
 
 ## Install

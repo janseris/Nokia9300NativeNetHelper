@@ -20,7 +20,7 @@ _LIT8(KReused8, "reused");
 _LIT8(KNew8, "new");
 _LIT(KReused, "reused");
 _LIT(KNew, "new");
-_LIT8(KDefaultUa, "NetHelper9300/0.7 (Symbian native helper; Nokia 9300; SymbianOS/7.0s Series80/2.0)");
+_LIT8(KDefaultUa, "NetHelper9300/0.8 (Symbian native helper; Nokia 9300; SymbianOS/7.0s Series80/2.0)");
 
 void AddStatLine(TNetStats& aStats, const TDesC& aLine)
     {
@@ -210,6 +210,7 @@ void CWorker::ConstructL()
             delete iCache; iCache = NULL;
             TBuf<60> l; l.Format(_L("Tile cache not available: %d"), err); AddStatLine(iStats, l);
             }
+        else { iStats.iCacheFiles = iCache->iFiles; iStats.iCacheKB = iCache->iTotal / 1024; }
         }
     User::LeaveIfError(iListen->iSock.Open(iSs, KAfInet, KSockStream, KProtocolInetTcp));
     iListen->iSock.SetOpt(KSoReuseAddr, KSolInetIp, 1);
@@ -290,6 +291,17 @@ void CWorker::HandleClientL()
     if (sp2 >= 0) target.Set(target.Left(sp2));
 
     TBuf8<300> head;
+    if (target.Left(4).Compare(_L8("/mem")) == 0)
+        {
+        // the phone's RAM and C: as Net Helper measures them (every 2 s), for the Java apps' logs
+        TBuf8<200> body;
+        body.Format(_L8("ram_total_kb=%d\nram_free_kb=%d\nram_lowest_free_kb=%d\nc_free_kb=%d\ncache_tiles=%d\ncache_kb=%d\n"),
+            iStats.iRamTotalKB, iStats.iRamFreeKB, iStats.iRamMinFreeKB, iStats.iDiskFreeKB, iStats.iCacheFiles, iStats.iCacheKB);
+        head.Format(_L8("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n"), body.Length());
+        ReplyL(head, body);
+        CleanupStack::PopAndDestroy(reqBuf);
+        return;
+        }
     if (target.Left(4).Compare(_L8("/gps")) == 0)
         {
         // the GPS (read by the GPS thread): /gps?addr=<12 hex digits> keeps it wanted, /gps?stop=1 lets it go
@@ -307,7 +319,7 @@ void CWorker::HandleClientL()
         {
         // anything else: a short hello (step 1's test still works)
         TBuf8<200> body;
-        body.Format(_L8("Net Helper 9300 0.7: hello from native code, request %d. Use /fetch?u=<URL>\n"), iStats.iRequests);
+        body.Format(_L8("Net Helper 9300 0.8: hello from native code, request %d. Use /fetch?u=<URL>\n"), iStats.iRequests);
         head.Format(_L8("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n"), body.Length());
         AddStatLine(iStats, _L("hello"));
         ReplyL(head, body);
@@ -335,8 +347,9 @@ void CWorker::HandleClientL()
             {
             CleanupStack::PushL(cached);
             TPtrC8 body = cached ? TPtrC8(*cached) : TPtrC8();
+            iStats.iCacheReadMs = Ms(tc);
             head.Format(_L8("HTTP/1.0 200 OK\r\nContent-Type: %S\r\nContent-Length: %d\r\nX-Helper: cache=hit total=%d\r\nConnection: close\r\n\r\n"),
-                &type, body.Length(), Ms(tc));
+                &type, body.Length(), iStats.iCacheReadMs);
             ReplyL(head, body);
             iStats.iCacheHits = iCache->iHits;
             iStats.iChanged++;
@@ -372,7 +385,13 @@ void CWorker::HandleClientL()
     TBuf8<120> info;
     info.Format(_L8("conn=%S dns=%d connect=%d tls=%d first-byte=%d total=%d"),
         res.iReused ? &KReused8() : &KNew8(), res.iDnsMs, res.iConnectMs, res.iTlsMs, res.iFirstByteMs, res.iTotalMs);
-    if (err == KErrNone && useCache && iCache && res.iCode == 200 && res.iBody) iCache->Put(url, res.iType, *res.iBody);
+    if (err == KErrNone && useCache && iCache && res.iCode == 200 && res.iBody)
+        {
+        TTime ts;
+        ts.HomeTime();
+        iCache->Put(url, res.iType, *res.iBody);
+        iStats.iCacheSaveMs = Ms(ts);
+        }
     if (err == KErrNone)
         {
         if (res.iReused) iStats.iReused++;
