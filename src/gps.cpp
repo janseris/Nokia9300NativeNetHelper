@@ -375,7 +375,9 @@ void CGps::RunL()
             {
             // Bluetooth chip errors (seen: -6031 "unspecified") while reaching the Android phone: on
             // the 9300 the usual cause is a Bluetooth link to a PC (PC Suite), which blocks others
-            wait = 15;
+            // each try pages the Android phone for seconds, which seems to hold up the phone's other
+            // networking too (Mapy's tiles stalled meanwhile): 15, 30, 45, then every 60 s
+            wait = Min(60, 15 * failures);
             info.Format(_L8("can't reach the GPS phone (Bluetooth error %d). Is the 9300 connected to a PC over Bluetooth? End that connection; again in %d s"), err, wait);
             SetState(_L8("blocked"), info);
             }

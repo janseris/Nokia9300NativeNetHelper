@@ -20,7 +20,7 @@ _LIT8(KReused8, "reused");
 _LIT8(KNew8, "new");
 _LIT(KReused, "reused");
 _LIT(KNew, "new");
-_LIT8(KDefaultUa, "NetHelper9300/0.11 (Symbian native helper; Nokia 9300; SymbianOS/7.0s Series80/2.0)");
+_LIT8(KDefaultUa, "NetHelper9300/0.12 (Symbian native helper; Nokia 9300; SymbianOS/7.0s Series80/2.0)");
 
 void AddStatLine(TNetStats& aStats, const TDesC& aLine)
     {
@@ -108,6 +108,7 @@ private:
     TInt ReadBody(CConn& aC, TInt aLen, HBufC8*& aBody);
     void CountOpen();
     static TInt Ms(const TTime& aFrom);
+    TTime iAcceptedAt;
 
     TNetStats& iStats;
     RSocketServ iSs;
@@ -167,6 +168,16 @@ static void PercentDecode(TDes8& aS)
         aS[o++] = c;
         }
     aS.SetLength(o);
+    }
+
+// The time of day in ms, UTC: the Java app compares it with its own clock (currentTimeMillis() %
+// 86400000) to see where a request waited: on the way to Net Helper, inside it, or on the way back.
+static TInt DayMs()
+    {
+    TTime now;
+    now.UniversalTime();
+    TDateTime d = now.DateTime();
+    return ((d.Hour() * 60 + d.Minute()) * 60 + d.Second()) * 1000 + d.MicroSecond() / 1000;
     }
 
 TInt CWorker::Ms(const TTime& aFrom)
@@ -239,6 +250,7 @@ void CWorker::ServeL()
         if (iW->Stopping()) { iClient->iSock.Close(); break; }
         if (err == KErrNone)
             {
+            iAcceptedAt.HomeTime();
             TRAP(err, HandleClientL());
             if (err != KErrNone)
                 {
@@ -285,6 +297,8 @@ void CWorker::HandleClientL()
         if (err != KErrNone) break;
         }
     iStats.iRequests++;
+    TInt gotAt = DayMs();           // the request is in (Java's wait before this: connecting, queued)
+    TInt readMs = Ms(iAcceptedAt);  // from the accept to the whole request read
     TInt sp1 = req.Locate(' ');
     TPtrC8 target = sp1 < 0 ? TPtrC8() : req.Mid(sp1 + 1);
     TInt sp2 = target.Locate(' ');
@@ -334,7 +348,7 @@ void CWorker::HandleClientL()
         {
         // anything else: a short hello (step 1's test still works)
         TBuf8<200> body;
-        body.Format(_L8("Net Helper 9300 0.11: hello from native code, request %d. Use /fetch?u=<URL>\n"), iStats.iRequests);
+        body.Format(_L8("Net Helper 9300 0.12: hello from native code, request %d. Use /fetch?u=<URL>\n"), iStats.iRequests);
         head.Format(_L8("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n"), body.Length());
         AddStatLine(iStats, _L("hello"));
         ReplyL(head, body);
@@ -363,8 +377,8 @@ void CWorker::HandleClientL()
             CleanupStack::PushL(cached);
             TPtrC8 body = cached ? TPtrC8(*cached) : TPtrC8();
             iStats.iCacheReadMs = Ms(tc);
-            head.Format(_L8("HTTP/1.0 200 OK\r\nContent-Type: %S\r\nContent-Length: %d\r\nX-Helper: cache=hit total=%d\r\nConnection: close\r\n\r\n"),
-                &type, body.Length(), iStats.iCacheReadMs);
+            head.Format(_L8("HTTP/1.0 200 OK\r\nContent-Type: %S\r\nContent-Length: %d\r\nX-Helper: cache=hit total=%d read=%d got=%d sent=%d\r\nConnection: close\r\n\r\n"),
+                &type, body.Length(), iStats.iCacheReadMs, readMs, gotAt, DayMs());
             ReplyL(head, body);
             iStats.iCacheHits = iCache->iHits;
             iStats.iChanged++;
@@ -397,16 +411,10 @@ void CWorker::HandleClientL()
     host16.Copy(host.Left(40));
 
     TBuf<110> line;
-    TBuf8<120> info;
-    info.Format(_L8("conn=%S dns=%d connect=%d tls=%d first-byte=%d total=%d"),
-        res.iReused ? &KReused8() : &KNew8(), res.iDnsMs, res.iConnectMs, res.iTlsMs, res.iFirstByteMs, res.iTotalMs);
-    if (err == KErrNone && useCache && iCache && res.iCode == 200 && res.iBody)
-        {
-        TTime ts;
-        ts.HomeTime();
-        iCache->Put(url, res.iType, *res.iBody);
-        iStats.iCacheSaveMs = Ms(ts);
-        }
+    TBuf8<200> info;
+    info.Format(_L8("conn=%S dns=%d connect=%d tls=%d first-byte=%d total=%d read=%d got=%d sent=%d"),
+        res.iReused ? &KReused8() : &KNew8(), res.iDnsMs, res.iConnectMs, res.iTlsMs, res.iFirstByteMs, res.iTotalMs,
+        readMs, gotAt, DayMs());
     if (err == KErrNone)
         {
         if (res.iReused) iStats.iReused++;
@@ -429,6 +437,14 @@ void CWorker::HandleClientL()
         line.Format(_L("ERR %d %S: %S"), err, &res.iError, &host16);
         AddStatLine(iStats, line);
         ReplyL(head, body);
+        }
+    if (err == KErrNone && useCache && iCache && res.iCode == 200 && res.iBody)
+        {
+        // after the answer went out: the Java app doesn't wait for the save (about 1 s on the 9300)
+        TTime ts;
+        ts.HomeTime();
+        iCache->Put(url, res.iType, *res.iBody);
+        iStats.iCacheSaveMs = Ms(ts);
         }
     if (iCache) { iStats.iCacheFiles = iCache->iFiles; iStats.iCacheKB = iCache->iTotal / 1024; iStats.iCacheHits = iCache->iHits; iStats.iCacheStored = iCache->iStored; }
     CleanupStack::PopAndDestroy(3, reqBuf);     // body, url, req

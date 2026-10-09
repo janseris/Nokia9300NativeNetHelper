@@ -51,6 +51,10 @@ on the phone, listens there and will do the network work for them over kept-open
 - **0.10:** the screen scrolls with the up/down arrows (the lines didn't fit even in full screen); `/mem` also
   gives the tile cache's hits, stored tiles and last read/save times, the counters and the GPS line, so Probe
   ("Net Helper status") can send it all to the PC.
+- **0.11:** the drive list is filled (0.9/0.10 never measured it).
+- **0.12:** answers first, then saves the tile into the cache (the Java app waited ~1 s for the save);
+  `X-Helper` gives `read=` (accept to request read), `got=` and `sent=` (ms of the day, UTC), so Mapy can
+  tell where a request waited; a GPS phone that is "blocked" is tried again after 15, 30, 45, then 60 s.
 
 ## Install
 
