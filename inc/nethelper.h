@@ -53,6 +53,7 @@ struct TNetStats
 void AddStatLine(TNetStats& aStats, const TDesC& aLine);
 TInt NetWorkerThread(TAny* aStats);
 TInt NetGpsThread(TAny* aStats);
+void GpsReply(TGpsState& aGps, const TDesC8& aQuery, TDes8& aBody);
 
 class CNetHelperView : public CEikBorderedControl
     {
@@ -60,6 +61,7 @@ public:
     static CNetHelperView* NewL(const TRect& aRect, const TNetStats& aStats);
     void Draw(const TRect& aRect) const;
 private:
+    void Wrapped(CWindowGc& aGc, const CFont& aFont, const TDesC& aText, TPoint& aP, TInt aWidth, TInt aH, TInt aBottom) const;
     CNetHelperView(const TNetStats& aStats) : iStats(aStats) {}
     void ConstructL(const TRect& aRect);
     const TNetStats& iStats;
@@ -71,8 +73,10 @@ public:
     void ConstructL();
     ~CNetHelperAppUi();
     void HandleCommandL(TInt aCommand);
+    TKeyResponse HandleKeyEventL(const TKeyEvent& aKeyEvent, TEventCode aType);
 private:
     static TInt Tick(TAny* aSelf);
+    TBool iFull;
     CNetHelperView* iView;
     TNetStats iStats;
     RThread iWorker;

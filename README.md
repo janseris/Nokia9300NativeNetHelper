@@ -31,6 +31,10 @@ on the phone, listens there and will do the network work for them over kept-open
   -6031) usually means the 9300 has a Bluetooth link to a PC (PC Suite), which blocks other links:
   state `blocked` with that hint, retried every 15 s. Also "phone doesn't answer" (-6004) and "no GPS
   sharing offered".
+- **0.6:** `/gps` also on **127.0.0.1:8124**, answered by the GPS thread at once (on 8123 a GPS
+  request waited behind tile downloads: up to 54 s in Probe 3.6). The GPS tries every serial port
+  channel the phone offers (an Android offered 6, which stayed silent, and 11, which sent NMEA) and
+  remembers the one that sends data. The screen wraps long lines and shows the GPS state; F = full screen.
 - Mapy 4.4+ downloads through it when it's running; Mapy 4.15+ also takes the GPS from it.
 
 ## Install

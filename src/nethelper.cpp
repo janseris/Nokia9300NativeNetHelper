@@ -1,6 +1,7 @@
 #include <eikenv.h>
 #include <cknenv.h>
 #include <ckninfo.h>
+#include <eikbtgpc.h>
 #include <nethelper.rsg>
 #include "nethelper.h"
 #include "nethelper.hrh"
@@ -107,14 +108,25 @@ void CNetHelperAppUi::HandleCommandL(TInt aCommand)
             break;
         case ENetHelperCmdInfo:
             {
-            _LIT(KTitle, "Net Helper 9300 0.5");
-            _LIT(KText, "Native helper for the Java apps. GET http://127.0.0.1:8123/fetch?u=<URL> fetches the URL over kept-open connections; /gps?addr=<BT address> reads the Bluetooth GPS.");
+            _LIT(KTitle, "Net Helper 9300 0.6");
+            _LIT(KText, "Native helper for the Java apps. GET http://127.0.0.1:8123/fetch?u=<URL> fetches the URL over kept-open connections; /gps?addr=<BT address> (also on 127.0.0.1:8124, answered at once) reads the Bluetooth GPS. F: full screen.");
             CCknInfoDialog::RunDlgLD(KTitle, KText);
             }
             break;
         default:
             break;
         }
+    }
+
+// F: full screen (the side buttons' labels hidden) and back.
+TKeyResponse CNetHelperAppUi::HandleKeyEventL(const TKeyEvent& aKeyEvent, TEventCode aType)
+    {
+    if (aType != EEventKey || (aKeyEvent.iCode != 'f' && aKeyEvent.iCode != 'F')) return EKeyWasNotConsumed;
+    iFull = !iFull;
+    CEikButtonGroupContainer* cba = CEikButtonGroupContainer::Current();
+    if (cba) cba->MakeVisible(!iFull);
+    if (iView) { iView->SetRect(iFull ? ApplicationRect() : ClientRect()); iView->DrawNow(); }
+    return EKeyWasConsumed;
     }
 
 // ------------------------------------------------------------------ view
@@ -138,6 +150,27 @@ void CNetHelperView::ConstructL(const TRect& aRect)
     ActivateL();
     }
 
+// Draws aText from aP, wrapped at spaces to aWidth pixels; aP moves below it.
+void CNetHelperView::Wrapped(CWindowGc& aGc, const CFont& aFont, const TDesC& aText, TPoint& aP, TInt aWidth, TInt aH, TInt aBottom) const
+    {
+    TPtrC rest(aText);
+    while (rest.Length() > 0 && aP.iY <= aBottom)
+        {
+        TInt n = aFont.TextCount(rest, aWidth);
+        if (n <= 0) n = 1;
+        if (n < rest.Length())
+            {
+            TInt sp = rest.Left(n).LocateReverse(' ');
+            if (sp > 0) n = sp + 1;
+            }
+        TPtrC line = rest.Left(n);
+        aGc.DrawText(line, aP);
+        aP.iY += aH;
+        rest.Set(rest.Mid(n));
+        while (rest.Length() > 0 && rest[0] == ' ') rest.Set(rest.Mid(1));
+        }
+    }
+
 void CNetHelperView::Draw(const TRect& aRect) const
     {
     CEikBorderedControl::Draw(aRect);
@@ -150,27 +183,33 @@ void CNetHelperView::Draw(const TRect& aRect) const
     const CFont* font = iEikonEnv->NormalFont();
     gc.UseFont(font);
     gc.SetPenColor(KRgbBlack);
-    TInt h = font->HeightInPixels() + 5;
+    TInt h = font->HeightInPixels() + 5, w = rect.Width() - 20, bottom = rect.iBr.iY;
     TPoint p(rect.iTl.iX + 10, rect.iTl.iY + h + 2);
-    gc.DrawText(_L("Net Helper 9300 0.5 - native helper for the Java apps"), p);
-    p.iY += h;
-    gc.DrawText(iStats.iStatus, p);
-    p.iY += h;
-    TBuf<160> n;
+    Wrapped(gc, *font, _L("Net Helper 9300 0.6 - native helper for the Java apps (F: full screen)"), p, w, h, bottom);
+    Wrapped(gc, *font, iStats.iStatus, p, w, h, bottom);
+    TBuf<200> n;
     n.Format(_L("Requests %d | fetched %d, %d on a kept-open connection | connections opened %d, open %d | errors %d"),
         iStats.iRequests, iStats.iFetches, iStats.iReused, iStats.iNewConns, iStats.iOpenConns, iStats.iErrors);
-    gc.DrawText(n, p);
-    p.iY += h + 4;
+    Wrapped(gc, *font, n, p, w, h, bottom);
+    // the GPS (read under its lock)
+    TGpsState& g = ((TNetStats&) iStats).iGps;
+    TBuf<260> gl;
+    g.iLock.Wait();
+    TBuf<200> info;
+    info.Copy(g.iInfo.Left(200));
+    TBuf<16> st;
+    st.Copy(g.iState);
+    gl.Format(_L("GPS: %S - %S | sentences %d"), &st, &info, g.iSentences);
+    g.iLock.Signal();
+    Wrapped(gc, *font, gl, p, w, h, bottom);
+    p.iY += 4;
     gc.SetPenColor(TRgb(0x40, 0x40, 0x40));
     // newest first
-    for (TInt i = 1; i <= KStatLines; i++)
+    for (TInt i = 1; i <= KStatLines && p.iY <= bottom; i++)
         {
         const TDesC& l = iStats.iLines[(iStats.iNextLine - i + 2 * KStatLines) % KStatLines];
         if (l.Length() == 0) break;
-        if (p.iY > rect.iBr.iY) break;
-        gc.DrawText(l, p);
-        p.iY += h;
+        Wrapped(gc, *font, l, p, w, h, bottom);
         }
     gc.DiscardFont();
     }
-

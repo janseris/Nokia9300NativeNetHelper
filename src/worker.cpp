@@ -20,7 +20,7 @@ _LIT8(KReused8, "reused");
 _LIT8(KNew8, "new");
 _LIT(KReused, "reused");
 _LIT(KNew, "new");
-_LIT8(KDefaultUa, "NetHelper9300/0.5 (Symbian native helper; Nokia 9300; SymbianOS/7.0s Series80/2.0)");
+_LIT8(KDefaultUa, "NetHelper9300/0.6 (Symbian native helper; Nokia 9300; SymbianOS/7.0s Series80/2.0)");
 
 void AddStatLine(TNetStats& aStats, const TDesC& aLine)
     {
@@ -277,34 +277,9 @@ void CWorker::HandleClientL()
     if (target.Left(4).Compare(_L8("/gps")) == 0)
         {
         // the GPS (read by the GPS thread): /gps?addr=<12 hex digits> keeps it wanted, /gps?stop=1 lets it go
-        TGpsState& g = iStats.iGps;
-        TPtrC8 q = target.Mid(4);
-        TInt a = q.Find(_L8("addr="));
-        TTime now;
-        now.HomeTime();
-        HBufC8* bodyBuf = HBufC8::NewLC(600);
+        HBufC8* bodyBuf = HBufC8::NewLC(700);
         TPtr8 body = bodyBuf->Des();
-        g.iLock.Wait();
-        if (q.Find(_L8("stop=1")) >= 0) g.iWanted = EFalse;
-        else if (a >= 0 && q.Length() >= a + 5 + 12)
-            {
-            g.iAddr = q.Mid(a + 5, 12);
-            g.iAddr.UpperCase();
-            g.iWanted = ETrue;
-            g.iLastAsk = now;
-            }
-        TInt age = -1;
-        if (g.iLastData.Int64() != TInt64(0))
-            {
-            TInt64 us = now.MicroSecondsFrom(g.iLastData).Int64();
-            us /= 1000;
-            age = us.GetTInt();
-            }
-        body.AppendFormat(_L8("state=%S\ninfo=%S\nage=%d\nsentences=%d\nchannel=%d\nconnects=%d\n"),
-            &g.iState, &g.iInfo, age, g.iSentences, g.iChannel, g.iConnects);
-        if (g.iGga.Length() > 0) { body.Append(g.iGga); body.Append(_L8("\n")); }
-        if (g.iRmc.Length() > 0) { body.Append(g.iRmc); body.Append(_L8("\n")); }
-        g.iLock.Signal();
+        GpsReply(iStats.iGps, target.Mid(4), body);
         head.Format(_L8("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n"), body.Length());
         ReplyL(head, body);
         CleanupStack::PopAndDestroy(2, reqBuf);     // body, req
@@ -314,7 +289,7 @@ void CWorker::HandleClientL()
         {
         // anything else: a short hello (step 1's test still works)
         TBuf8<200> body;
-        body.Format(_L8("Net Helper 9300 0.5: hello from native code, request %d. Use /fetch?u=<URL>\n"), iStats.iRequests);
+        body.Format(_L8("Net Helper 9300 0.6: hello from native code, request %d. Use /fetch?u=<URL>\n"), iStats.iRequests);
         head.Format(_L8("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n"), body.Length());
         AddStatLine(iStats, _L("hello"));
         ReplyL(head, body);
