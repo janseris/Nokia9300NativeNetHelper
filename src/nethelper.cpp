@@ -107,7 +107,7 @@ void CNetHelperAppUi::HandleCommandL(TInt aCommand)
             break;
         case ENetHelperCmdInfo:
             {
-            _LIT(KTitle, "Net Helper 9300 0.4");
+            _LIT(KTitle, "Net Helper 9300 0.5");
             _LIT(KText, "Native helper for the Java apps. GET http://127.0.0.1:8123/fetch?u=<URL> fetches the URL over kept-open connections; /gps?addr=<BT address> reads the Bluetooth GPS.");
             CCknInfoDialog::RunDlgLD(KTitle, KText);
             }
@@ -152,7 +152,7 @@ void CNetHelperView::Draw(const TRect& aRect) const
     gc.SetPenColor(KRgbBlack);
     TInt h = font->HeightInPixels() + 5;
     TPoint p(rect.iTl.iX + 10, rect.iTl.iY + h + 2);
-    gc.DrawText(_L("Net Helper 9300 0.4 - native helper for the Java apps"), p);
+    gc.DrawText(_L("Net Helper 9300 0.5 - native helper for the Java apps"), p);
     p.iY += h;
     gc.DrawText(iStats.iStatus, p);
     p.iY += h;

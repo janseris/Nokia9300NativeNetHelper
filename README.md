@@ -27,6 +27,10 @@ on the phone, listens there and will do the network work for them over kept-open
   `GET /gps?addr=<12 hex digits>` answers `state= info= age= sentences= channel= connects=` lines and
   the latest `$..GGA` / `$..RMC` sentences; `/gps?stop=1` lets the GPS go. Java reading Bluetooth while
   downloading slowed every download to seconds and crashed jes-java-comms (E32USER-CBase 40, Probe 3.5).
+- **0.5:** says why the GPS can't connect: a Bluetooth chip error while reaching the phone (seen:
+  -6031) usually means the 9300 has a Bluetooth link to a PC (PC Suite), which blocks other links:
+  state `blocked` with that hint, retried every 15 s. Also "phone doesn't answer" (-6004) and "no GPS
+  sharing offered".
 - Mapy 4.4+ downloads through it when it's running; Mapy 4.15+ also takes the GPS from it.
 
 ## Install

@@ -20,7 +20,7 @@ _LIT8(KReused8, "reused");
 _LIT8(KNew8, "new");
 _LIT(KReused, "reused");
 _LIT(KNew, "new");
-_LIT8(KDefaultUa, "NetHelper9300/0.4 (Symbian native helper; Nokia 9300; SymbianOS/7.0s Series80/2.0)");
+_LIT8(KDefaultUa, "NetHelper9300/0.5 (Symbian native helper; Nokia 9300; SymbianOS/7.0s Series80/2.0)");
 
 void AddStatLine(TNetStats& aStats, const TDesC& aLine)
     {
@@ -314,7 +314,7 @@ void CWorker::HandleClientL()
         {
         // anything else: a short hello (step 1's test still works)
         TBuf8<200> body;
-        body.Format(_L8("Net Helper 9300 0.4: hello from native code, request %d. Use /fetch?u=<URL>\n"), iStats.iRequests);
+        body.Format(_L8("Net Helper 9300 0.5: hello from native code, request %d. Use /fetch?u=<URL>\n"), iStats.iRequests);
         head.Format(_L8("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n"), body.Length());
         AddStatLine(iStats, _L("hello"));
         ReplyL(head, body);

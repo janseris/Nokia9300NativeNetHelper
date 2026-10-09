@@ -29,7 +29,7 @@ struct TGpsState
     TTime iLastData;            // time of the last sentence (0 = none yet)
     TInt iSentences, iConnects, iChannel;
     TBuf8<16> iState;           // idle, searching, connecting, connected, error
-    TBuf8<120> iInfo;
+    TBuf8<200> iInfo;
     TRequestStatus* iStop;      // the GPS thread's stop request
     };
 

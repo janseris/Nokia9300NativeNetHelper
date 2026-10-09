@@ -127,6 +127,7 @@ private:
     TBuf8<512> iRecv;
     TSockXfrLength iXfr;
     TBuf8<200> iLine;
+    TInt iStep;                 // 1 SDP search, 2 RFCOMM connect, 3 connected
     };
 
 CGps::~CGps()
@@ -213,21 +214,34 @@ void CGps::RunL()
             Sleep(500);
             continue;
             }
+        iStep = 0;
         TInt err = Session(addr);
         if (iW->Stopping()) break;
-        // the link ended or failed: again, a bit later each time (at most 10 s)
+        // the link ended or failed: again, a bit later each time (at most 10 s; 15 s when blocked)
         failures = err == KErrNone ? 0 : failures + 1;
-        TBuf8<120> info;
-        info.Format(_L8("disconnected (%d), again in %d s"), err, Min(10, 2 + failures * 2));
+        TInt wait = Min(10, 2 + failures * 2);
+        TBuf8<200> info;
+        const TDesC8& step = iStep == 1 ? _L8("finding the GPS service") : iStep == 2 ? _L8("connecting") : _L8("connection");
         if (err == KErrHardwareNotAvailable) SetState(_L8("btoff"), _L8("Bluetooth is off"));
-        else SetState(_L8("error"), info);
-        for (TInt i = 0; i < Min(10, 2 + failures * 2) * 2 && !iW->Stopping(); i++) Sleep(500);
+        else if (err <= -6000 && err > -6100 && err != -6004 && iStep <= 2)
+            {
+            // Bluetooth chip errors (seen: -6031 "unspecified") while reaching the Android phone: on
+            // the 9300 the usual cause is a Bluetooth link to a PC (PC Suite), which blocks others
+            wait = 15;
+            info.Format(_L8("can't reach the GPS phone (Bluetooth error %d). Is the 9300 connected to a PC over Bluetooth? End that connection; again in %d s"), err, wait);
+            SetState(_L8("blocked"), info);
+            }
+        else if (err == -6004) { info.Format(_L8("the GPS phone doesn't answer (out of range or its Bluetooth off), again in %d s"), wait); SetState(_L8("error"), info); }
+        else if (err == KErrNotFound && iStep == 1) { info.Format(_L8("the phone offers no GPS sharing: switch it on (GPS NMEA Tether); again in %d s"), wait); SetState(_L8("error"), info); }
+        else { info.Format(_L8("%S failed (%d), again in %d s"), &step, err, wait); SetState(_L8("error"), info); }
+        for (TInt i = 0; i < wait * 2 && !iW->Stopping(); i++) Sleep(500);
         }
     }
 
 // One connection: SDP search, connect, read until the link drops or nobody wants the GPS.
 TInt CGps::Session(const TBTDevAddr& aAddr)
     {
+    iStep = 1;
     SetState(_L8("searching"), _L8("looking for the GPS service"));
     TRAPD(err, iSdp->StartL(aAddr, iW->Status()));
     if (err != KErrNone) return err;
@@ -235,6 +249,7 @@ TInt CGps::Session(const TBTDevAddr& aAddr)
     if (err != KErrNone) return err;
     TBuf8<60> info;
     info.Format(_L8("connecting to channel %d"), iSdp->iChannel);
+    iStep = 2;
     SetState(_L8("connecting"), info);
 
     err = iBt->iSock.Open(iSs, KBTAddrFamily, KSockStream, KRFCOMM);
@@ -251,6 +266,7 @@ TInt CGps::Session(const TBTDevAddr& aAddr)
         iGps.iConnects++;
         iGps.iChannel = iSdp->iChannel;
         iGps.iLock.Signal();
+        iStep = 3;
         info.Format(_L8("connected (channel %d), waiting for data"), iSdp->iChannel);
         SetState(_L8("connected"), info);
         iLine.Zero();
