@@ -20,7 +20,7 @@ _LIT8(KReused8, "reused");
 _LIT8(KNew8, "new");
 _LIT(KReused, "reused");
 _LIT(KNew, "new");
-_LIT8(KDefaultUa, "NetHelper9300/0.8 (Symbian native helper; Nokia 9300; SymbianOS/7.0s Series80/2.0)");
+_LIT8(KDefaultUa, "NetHelper9300/0.9 (Symbian native helper; Nokia 9300; SymbianOS/7.0s Series80/2.0)");
 
 void AddStatLine(TNetStats& aStats, const TDesC& aLine)
     {
@@ -294,9 +294,13 @@ void CWorker::HandleClientL()
     if (target.Left(4).Compare(_L8("/mem")) == 0)
         {
         // the phone's RAM and C: as Net Helper measures them (every 2 s), for the Java apps' logs
-        TBuf8<200> body;
-        body.Format(_L8("ram_total_kb=%d\nram_free_kb=%d\nram_lowest_free_kb=%d\nc_free_kb=%d\ncache_tiles=%d\ncache_kb=%d\n"),
+        TBuf8<600> body;
+        body.Format(_L8("ram_total_kb=%d\nram_free_kb=%d\nram_lowest_free_kb=%d\nc_free_kb=%d\ncache_tiles=%d\ncache_kb=%d\ndrives="),
             iStats.iRamTotalKB, iStats.iRamFreeKB, iStats.iRamMinFreeKB, iStats.iDiskFreeKB, iStats.iCacheFiles, iStats.iCacheKB);
+        TBuf8<300> drives;
+        drives.Copy(iStats.iDrives);
+        body.Append(drives);
+        body.Append(_L8("\n"));
         head.Format(_L8("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n"), body.Length());
         ReplyL(head, body);
         CleanupStack::PopAndDestroy(reqBuf);
@@ -319,7 +323,7 @@ void CWorker::HandleClientL()
         {
         // anything else: a short hello (step 1's test still works)
         TBuf8<200> body;
-        body.Format(_L8("Net Helper 9300 0.8: hello from native code, request %d. Use /fetch?u=<URL>\n"), iStats.iRequests);
+        body.Format(_L8("Net Helper 9300 0.9: hello from native code, request %d. Use /fetch?u=<URL>\n"), iStats.iRequests);
         head.Format(_L8("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n"), body.Length());
         AddStatLine(iStats, _L("hello"));
         ReplyL(head, body);

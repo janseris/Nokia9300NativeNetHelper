@@ -49,6 +49,7 @@ struct TNetStats
     TRequestStatus* iStop;      // the worker's stop request: the UI completes it on Exit
     TInt iCacheFiles, iCacheKB, iCacheHits, iCacheStored, iCacheSaveMs, iCacheReadMs;
     TInt iRamTotalKB, iRamFreeKB, iRamMinFreeKB, iDiskFreeKB;   // updated by the UI every 2 s
+    TBuf<300> iDrives;          // every drive: letter, kind, size, free (updated by the UI every 10 s)
     TGpsState iGps;
     };
 

@@ -60,11 +60,49 @@ void CNetHelperAppUi::Measure()
         iStats.iRamFreeKB = info().iFreeRamInBytes / 1024;
         if (iStats.iRamMinFreeKB == 0 || iStats.iRamFreeKB < iStats.iRamMinFreeKB) iStats.iRamMinFreeKB = iStats.iRamFreeKB;
         }
+    RFs& fs = iEikonEnv->FsSession();
     TVolumeInfo vol;
-    if (iEikonEnv->FsSession().Volume(vol, EDriveC) == KErrNone)
+    if (fs.Volume(vol, EDriveC) == KErrNone)
         {
         TInt64 kb = vol.iFree / TInt64(1024);
         iStats.iDiskFreeKB = kb.GetTInt();
+        }
+    // every drive with what the file server says it is (RAM drive, flash, memory card, ROM...)
+    if (iTicks % 20 == 1)
+        {
+        TDriveList list;
+        if (fs.DriveList(list) == KErrNone)
+            {
+            iStats.iDrives.Zero();
+            for (TInt d = EDriveA; d <= EDriveZ; d++)
+                {
+                if (!list[d]) continue;
+                TDriveInfo info;
+                if (fs.Drive(info, d) != KErrNone) continue;
+                const TText* kind = _S("?");
+                switch (info.iType)
+                    {
+                    case EMediaRam: kind = _S("RAM"); break;
+                    case EMediaFlash: kind = _S("flash"); break;
+                    case EMediaRom: kind = _S("ROM"); break;
+                    case EMediaHardDisk: kind = (info.iDriveAtt & KDriveAttRemovable) ? _S("card") : _S("disk"); break;
+                    case EMediaNotPresent: kind = _S("empty"); break;
+                    case EMediaRemote: kind = _S("remote"); break;
+                    default: break;
+                    }
+                TBuf<60> one;
+                TVolumeInfo v;
+                if (fs.Volume(v, d) == KErrNone)
+                    {
+                    TInt64 size = v.iSize / TInt64(1024), free = v.iFree / TInt64(1024);
+                    one.Format(_L("%c: %s %d KB, free %d KB%s"), 'A' + d, kind, size.GetTInt(), free.GetTInt(),
+                        (info.iDriveAtt & KDriveAttSubsted) ? _S(" (substituted)") : _S(""));
+                    }
+                else one.Format(_L("%c: %s"), 'A' + d, kind);
+                if (iStats.iDrives.Length() > 0 && iStats.iDrives.Length() + 3 <= iStats.iDrives.MaxLength()) iStats.iDrives.Append(_L(" | "));
+                if (iStats.iDrives.Length() + one.Length() <= iStats.iDrives.MaxLength()) iStats.iDrives.Append(one);
+                }
+            }
         }
     iStats.iChanged++;
     }
@@ -72,7 +110,7 @@ void CNetHelperAppUi::Measure()
 TInt CNetHelperAppUi::Tick(TAny* aSelf)
     {
     CNetHelperAppUi* self = (CNetHelperAppUi*) aSelf;
-    if (self->iTicks++ % 4 == 0) self->Measure();
+    if (self->iTicks++ % 4 == 1) self->Measure();
     if (self->iStats.iChanged != self->iSeen)
         {
         self->iSeen = self->iStats.iChanged;
@@ -130,7 +168,7 @@ void CNetHelperAppUi::HandleCommandL(TInt aCommand)
             break;
         case ENetHelperCmdInfo:
             {
-            _LIT(KTitle, "Net Helper 9300 0.8");
+            _LIT(KTitle, "Net Helper 9300 0.9");
             _LIT(KText, "Native helper for the Java apps. GET http://127.0.0.1:8123/fetch?u=<URL> fetches the URL over kept-open connections; /gps?addr=<BT address> (also on 127.0.0.1:8124, answered at once) reads the Bluetooth GPS. F: full screen.");
             CCknInfoDialog::RunDlgLD(KTitle, KText);
             }
@@ -207,7 +245,7 @@ void CNetHelperView::Draw(const TRect& aRect) const
     gc.SetPenColor(KRgbBlack);
     TInt h = font->HeightInPixels() + 5, w = rect.Width() - 20, bottom = rect.iBr.iY;
     TPoint p(rect.iTl.iX + 10, rect.iTl.iY + h + 2);
-    Wrapped(gc, *font, _L("Net Helper 9300 0.8 - native helper for the Java apps (F: full screen)"), p, w, h, bottom);
+    Wrapped(gc, *font, _L("Net Helper 9300 0.9 - native helper for the Java apps (F: full screen)"), p, w, h, bottom);
     Wrapped(gc, *font, iStats.iStatus, p, w, h, bottom);
     TBuf<200> n;
     n.Format(_L("Requests %d | fetched %d, %d on a kept-open connection | connections opened %d, open %d | errors %d"),
@@ -216,6 +254,7 @@ void CNetHelperView::Draw(const TRect& aRect) const
     n.Format(_L("RAM: %d KB in all, free %d KB (lowest %d KB) | C: free %d KB"),
         iStats.iRamTotalKB, iStats.iRamFreeKB, iStats.iRamMinFreeKB, iStats.iDiskFreeKB);
     Wrapped(gc, *font, n, p, w, h, bottom);
+    Wrapped(gc, *font, iStats.iDrives, p, w, h, bottom);
     n.Format(_L("Tile cache: %d tiles, %d KB of 32 MB | from the cache %d (last read %d ms), stored %d (last save %d ms)"),
         iStats.iCacheFiles, iStats.iCacheKB, iStats.iCacheHits, iStats.iCacheReadMs, iStats.iCacheStored, iStats.iCacheSaveMs);
     Wrapped(gc, *font, n, p, w, h, bottom);

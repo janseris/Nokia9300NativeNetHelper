@@ -44,6 +44,9 @@ on the phone, listens there and will do the network work for them over kept-open
 - **0.8:** measures the phone's **RAM** (total, free, lowest free seen) and the free space on C:
   every 2 s (`UserHal::MemoryInfo`, `RFs::Volume`), on the screen and at `GET /mem`; the screen also
   shows how long the last tile took to save to / read from the cache.
+- **0.9:** lists every drive with its kind (RAM, flash, memory card, ROM), size and free space (on
+  the screen and in `/mem` as `drives=`), to find out what the 9300's "virtual E:" (17 MB) is: a RAM
+  drive would be a fast place for the tile cache (lost on restart).
 - Mapy 4.4+ downloads through it when it's running; Mapy 4.15+ also takes the GPS from it.
 
 ## Install
