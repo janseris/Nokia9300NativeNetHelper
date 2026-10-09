@@ -63,9 +63,10 @@ class CNetHelperView : public CEikBorderedControl
 public:
     static CNetHelperView* NewL(const TRect& aRect, const TNetStats& aStats);
     void Draw(const TRect& aRect) const;
+    TInt iScroll;               // rows scrolled down (up/down arrows)
 private:
     void Wrapped(CWindowGc& aGc, const CFont& aFont, const TDesC& aText, TPoint& aP, TInt aWidth, TInt aH, TInt aBottom) const;
-    CNetHelperView(const TNetStats& aStats) : iStats(aStats) {}
+    CNetHelperView(const TNetStats& aStats) : iScroll(0), iStats(aStats) {}
     void ConstructL(const TRect& aRect);
     const TNetStats& iStats;
     };

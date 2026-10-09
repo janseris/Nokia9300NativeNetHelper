@@ -168,7 +168,7 @@ void CNetHelperAppUi::HandleCommandL(TInt aCommand)
             break;
         case ENetHelperCmdInfo:
             {
-            _LIT(KTitle, "Net Helper 9300 0.9");
+            _LIT(KTitle, "Net Helper 9300 0.10");
             _LIT(KText, "Native helper for the Java apps. GET http://127.0.0.1:8123/fetch?u=<URL> fetches the URL over kept-open connections; /gps?addr=<BT address> (also on 127.0.0.1:8124, answered at once) reads the Bluetooth GPS. F: full screen.");
             CCknInfoDialog::RunDlgLD(KTitle, KText);
             }
@@ -178,14 +178,24 @@ void CNetHelperAppUi::HandleCommandL(TInt aCommand)
         }
     }
 
-// F: full screen (the side buttons' labels hidden) and back.
+// F: full screen (the side buttons' labels hidden) and back. Up/down arrows: scroll the text.
 TKeyResponse CNetHelperAppUi::HandleKeyEventL(const TKeyEvent& aKeyEvent, TEventCode aType)
     {
-    if (aType != EEventKey || (aKeyEvent.iCode != 'f' && aKeyEvent.iCode != 'F')) return EKeyWasNotConsumed;
+    if (aType != EEventKey || !iView) return EKeyWasNotConsumed;
+    if (aKeyEvent.iCode == EKeyDownArrow || aKeyEvent.iCode == EKeyUpArrow)
+        {
+        iView->iScroll += aKeyEvent.iCode == EKeyDownArrow ? 3 : -3;
+        if (iView->iScroll < 0) iView->iScroll = 0;
+        if (iView->iScroll > 60) iView->iScroll = 60;
+        iView->DrawNow();
+        return EKeyWasConsumed;
+        }
+    if (aKeyEvent.iCode != 'f' && aKeyEvent.iCode != 'F') return EKeyWasNotConsumed;
     iFull = !iFull;
     CEikButtonGroupContainer* cba = CEikButtonGroupContainer::Current();
     if (cba) cba->MakeVisible(!iFull);
-    if (iView) { iView->SetRect(iFull ? ApplicationRect() : ClientRect()); iView->DrawNow(); }
+    iView->SetRect(iFull ? ApplicationRect() : ClientRect());
+    iView->DrawNow();
     return EKeyWasConsumed;
     }
 
@@ -244,8 +254,8 @@ void CNetHelperView::Draw(const TRect& aRect) const
     gc.UseFont(font);
     gc.SetPenColor(KRgbBlack);
     TInt h = font->HeightInPixels() + 5, w = rect.Width() - 20, bottom = rect.iBr.iY;
-    TPoint p(rect.iTl.iX + 10, rect.iTl.iY + h + 2);
-    Wrapped(gc, *font, _L("Net Helper 9300 0.9 - native helper for the Java apps (F: full screen)"), p, w, h, bottom);
+    TPoint p(rect.iTl.iX + 10, rect.iTl.iY + h + 2 - iScroll * h);
+    Wrapped(gc, *font, _L("Net Helper 9300 0.10 - native helper for the Java apps (F: full screen, arrows: scroll)"), p, w, h, bottom);
     Wrapped(gc, *font, iStats.iStatus, p, w, h, bottom);
     TBuf<200> n;
     n.Format(_L("Requests %d | fetched %d, %d on a kept-open connection | connections opened %d, open %d | errors %d"),

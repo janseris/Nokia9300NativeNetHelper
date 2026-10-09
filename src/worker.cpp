@@ -20,7 +20,7 @@ _LIT8(KReused8, "reused");
 _LIT8(KNew8, "new");
 _LIT(KReused, "reused");
 _LIT(KNew, "new");
-_LIT8(KDefaultUa, "NetHelper9300/0.9 (Symbian native helper; Nokia 9300; SymbianOS/7.0s Series80/2.0)");
+_LIT8(KDefaultUa, "NetHelper9300/0.10 (Symbian native helper; Nokia 9300; SymbianOS/7.0s Series80/2.0)");
 
 void AddStatLine(TNetStats& aStats, const TDesC& aLine)
     {
@@ -294,12 +294,23 @@ void CWorker::HandleClientL()
     if (target.Left(4).Compare(_L8("/mem")) == 0)
         {
         // the phone's RAM and C: as Net Helper measures them (every 2 s), for the Java apps' logs
-        TBuf8<600> body;
-        body.Format(_L8("ram_total_kb=%d\nram_free_kb=%d\nram_lowest_free_kb=%d\nc_free_kb=%d\ncache_tiles=%d\ncache_kb=%d\ndrives="),
+        TBuf8<1100> body;
+        body.Format(_L8("ram_total_kb=%d\nram_free_kb=%d\nram_lowest_free_kb=%d\nc_free_kb=%d\ncache_tiles=%d\ncache_kb=%d\n"),
             iStats.iRamTotalKB, iStats.iRamFreeKB, iStats.iRamMinFreeKB, iStats.iDiskFreeKB, iStats.iCacheFiles, iStats.iCacheKB);
+        body.AppendFormat(_L8("cache_hits=%d\ncache_last_read_ms=%d\ncache_stored=%d\ncache_last_save_ms=%d\n"),
+            iStats.iCacheHits, iStats.iCacheReadMs, iStats.iCacheStored, iStats.iCacheSaveMs);
+        body.AppendFormat(_L8("requests=%d\nfetched=%d\nreused=%d\nconnections=%d\nerrors=%d\ndrives="),
+            iStats.iRequests, iStats.iFetches, iStats.iReused, iStats.iNewConns, iStats.iErrors);
         TBuf8<300> drives;
         drives.Copy(iStats.iDrives);
         body.Append(drives);
+        body.Append(_L8("\ngps="));
+        iStats.iGps.iLock.Wait();
+        body.Append(iStats.iGps.iState);
+        body.Append(_L8(" - "));
+        body.Append(iStats.iGps.iInfo.Left(200));
+        body.AppendFormat(_L8(" | sentences %d"), iStats.iGps.iSentences);
+        iStats.iGps.iLock.Signal();
         body.Append(_L8("\n"));
         head.Format(_L8("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n"), body.Length());
         ReplyL(head, body);
@@ -323,7 +334,7 @@ void CWorker::HandleClientL()
         {
         // anything else: a short hello (step 1's test still works)
         TBuf8<200> body;
-        body.Format(_L8("Net Helper 9300 0.9: hello from native code, request %d. Use /fetch?u=<URL>\n"), iStats.iRequests);
+        body.Format(_L8("Net Helper 9300 0.10: hello from native code, request %d. Use /fetch?u=<URL>\n"), iStats.iRequests);
         head.Format(_L8("HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n"), body.Length());
         AddStatLine(iStats, _L("hello"));
         ReplyL(head, body);

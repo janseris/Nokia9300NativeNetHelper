@@ -48,6 +48,9 @@ on the phone, listens there and will do the network work for them over kept-open
   the screen and in `/mem` as `drives=`), to find out what the 9300's "virtual E:" (17 MB) is: a RAM
   drive would be a fast place for the tile cache (lost on restart).
 - Mapy 4.4+ downloads through it when it's running; Mapy 4.15+ also takes the GPS from it.
+- **0.10:** the screen scrolls with the up/down arrows (the lines didn't fit even in full screen); `/mem` also
+  gives the tile cache's hits, stored tiles and last read/save times, the counters and the GPS line, so Probe
+  ("Net Helper status") can send it all to the PC.
 
 ## Install
 
