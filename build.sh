@@ -1,8 +1,8 @@
 #!/bin/sh
 # Builds bin/nethelper.sis (ARMI, for the Nokia 9300).
 # Needs the EKA1 toolchain and the Series 80 SDK, set up by the main repo's
-#   symbian-build/toolchain/setup_eka1_toolchain.sh <dir> ~/sym
-#   symbian-build/toolchain/setup_s80_sdk.sh S80_DP_2_0_SDK.zip ~/sym
+#   symbian-s80-build-tools/toolchain/setup_eka1_toolchain.sh <dir> ~/sym
+#   symbian-s80-build-tools/toolchain/setup_s80_sdk.sh S80_DP_2_0_SDK.zip ~/sym
 set -e
 SYM=${SYM:-$HOME/sym}
 HERE=$(cd "$(dirname "$0")" && pwd)
